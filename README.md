@@ -1,6 +1,6 @@
 # TiPToP: A Modular Open-Vocabulary Planning System for Robotic Manipulation
 
-### [🌐 Project Website](https://tiptop-robot.github.io) | [📝 Paper](https://tiptop-robot.github.io/tiptop.pdf)
+### [🌐 Project Website](https://tiptop-robot.github.io) | [📝 Paper](https://arxiv.org/abs/2603.09971)
 
 **[William Shen](https://shen.nz)<sup>\*1</sup>,
 [Nishanth Kumar](https://nishanthjkumar.com/)<sup>\*1</sup>,
