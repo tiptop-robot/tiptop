@@ -1,0 +1,75 @@
+[workspace]
+name = "tiptop"
+version = "0.0.1"
+authors = ["William Shen <willshen@mit.edu>", "Nishanth Kumar <njk@mit.edu>"]
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[system-requirements]
+cuda = "12"
+libc = { family = "glibc", version = "2.31" }
+
+[dependencies]
+# higher-level dependencies
+python = "3.12.*"
+pip = ">=21.3"  # Required for PEP 660 (editable installs with pyproject.toml)
+pre-commit = "*"
+cuda-toolkit = "12.*"
+pytorch-gpu = "*"
+ninja = "*"
+
+# tiptop dependencies
+aiohttp = "*"
+dill = "*"
+jaxtyping = "*"
+matplotlib = "*"
+numpy = "*"
+omegaconf = "*"
+ffmpeg = ">=6.0"
+opencv = "4.12.*"
+rerun-sdk = "==0.27.3"
+scipy = ">=1.7.0"
+tyro = "*"
+
+# cuRobo additional dependencies
+# derived from: https://github.com/williamshen-nz/curobo/blob/main/setup.cfg
+pybind11 = "*"
+networkx = "*"
+quaternion = "*"  # a.k.a numpy-quaternion on pypi
+pyyaml = "*"
+setuptools_scm = ">=6.2"
+trimesh = "*"
+tqdm = "*"
+wheel = "*"
+importlib_resources = "*"
+scikit-image = "*"
+
+# cuTAMP additional dependencies
+# derived from: https://github.com/williamshen-nz/cutamp-tiptop/blob/main/pyproject.toml
+einops = "*"
+h5py = ">=3.15.1,<4"
+msgpack-numpy = ">=0.4.8"  # for numpy array serialization over websocket
+websockets = ">=12.0"  # for websocket server
+
+[pypi-dependencies]
+pycollada = "*"  # for trimesh loading
+open3d = ">=0.19.0"  # for better CUDA compatibility
+roma = "*"  # required by cuTAMP
+warp-lang = ">=0.9.0"  # required by cuRobo, easier to install via pypi for support more CUDA builds
+yourdfpy = ">=0.0.60"
+tiptop = { path = ".", editable = true }
+
+[tasks]
+# Installation tasks
+install-zed = "bash install/install-zed.sh"
+install-curobo = { cmd = "bash install/install-curobo.sh", env = { CUDA_HOME = "$CONDA_PREFIX", LD_LIBRARY_PATH = "$CONDA_PREFIX/lib:$LD_LIBRARY_PATH" } }
+install-cutamp = "bash install/install-cutamp.sh"
+install-pre-commit = "pre-commit install"
+setup-planners = { depends-on = ["install-curobo", "install-cutamp"] }
+setup-all = { depends-on = ["install-zed", "install-curobo", "install-cutamp"] }
+
+# Documentation tasks
+docs-install = "pip install -r docs/requirements.txt"
+docs-build = { cmd = "make html", cwd = "docs" }
+docs-serve = { cmd = "make livehtml", cwd = "docs" }
+docs-clean = { cmd = "make clean", cwd = "docs" }

@@ -1,0 +1,61 @@
+# TiPToP Configuration for DROID setup
+
+# == Robot connection and control ==
+robot:
+  type: fr3_robotiq
+  dof: 7
+
+  # IP address or hostname of the workstation running the Bamboo controller (directly networked to robot)
+  host: "your-ip-address"
+
+  # Bamboo robot and gripper control port. You don't need to change these unless you used custom ports
+  port: 5555
+  gripper_port: 5559
+
+  # == Speed ratio for motions (0.0 to 1.0) ==
+  # This corresponds to the speed of the robot
+  # Start with 0.2 for safety, we DO NOT recommend going beyond 0.6 for safety
+  # We use 0.6 on our setup at MIT, where we have managed the camera USB cable carefully
+  time_dilation_factor: 0.2
+
+  # Robot configurations
+  q_home: [0.0, -0.628, 0.0, -2.513, 0.0, 1.885, 0.0]
+  q_capture: [-0.034, 0.090, 0.080, -1.319, -0.003, 1.253, 0.030]
+
+# == Camera configurations ==
+# Supported types: zed, realsense
+# ZED cameras support optional resolution and fps settings:
+#   HD720: 15/30/60 fps, HD1080: 15/30 fps, HD2K: 15 fps
+#   If not specified, defaults to HD720 at 60 fps
+# RealSense cameras only require serial and type (resolution and fps are not supported)
+cameras:
+  # TiPToP only uses the hand camera for perception
+  hand:
+    serial: "hand-serial"
+    type: zed
+
+  # External camera is optional but helpful for recording execution and scene visualization script (viz-scene)
+  external:
+    serial: "external-serial"
+    type: zed
+    resolution: HD1080
+    fps: 30
+
+# == Perception services ==
+# No need to change these unless you're running them on a remote machine or changed the ports
+perception:
+  foundation_stereo:
+    url: "http://localhost:1234"
+
+  m2t2:
+    url: "http://localhost:8123"
+
+  sam:
+    mode: "local"
+
+  # Perception hyperparameters
+  depth_trunc_m: 5.0             # Depth truncation threshold in meters
+  voxel_downsample_size: 0.0075  # Point cloud downsampling in meters before feeding into M2T2
+  contact_threshold_m: 0.01      # Grasp-object association distance threshold
+  mask_erosion_pixels: 3         # Pixels to erode segmentation masks to reduce noise
+

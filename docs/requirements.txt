@@ -1,0 +1,9 @@
+# Sphinx documentation dependencies
+sphinx>=7.0
+furo>=2024.0
+sphinx-copybutton>=0.5
+sphinx-autodoc-typehints>=2.0
+myst-parser>=3.0
+sphinx-design>=0.5
+sphinx-autobuild>=2021.3.14
+sphinxcontrib-video>=0.2

@@ -1,0 +1,46 @@
+Perform two tasks on this image based on the task instruction: "{task_instruction}".
+
+TASK 1 - OBJECT DETECTION:
+Detect and return bounding boxes for objects in the image.
+- DO NOT include the robot, robot gripper, or table surface
+- DO NOT include objects or surfaces irrelevant to the task or too far away to matter (e.g. walls, things on the wall that are far away, things on the floor below the table, people who might be in the scene, etc.)
+- Limit to 25 objects
+- If an object appears multiple times, name them by unique characteristics (color, size, position, etc.). If they seem the same, then just use numbers (e.g. 'soda_can1' and 'soda_can2', ... for identical-looking soda cans)
+- An object **cannot have the same name** as another under any circumstance.
+- Format: normalized coordinates 0-1000 as integers
+
+Be very careful to identify objects and name them in a way that's relevant to the task. If the task involves picking up a red apple, make sure that 'red' appears in the name of the apple.
+
+
+TASK 2 - TASK TRANSLATION:
+Translate this natural language instruction into some conjunction of formal predicates:
+
+AVAILABLE PREDICATES:
+- on(movable, surface): Object A is placed on top of object B
+
+It is very important that the goal is exact: use your visual recognition, common-sense and reasoning abilities to make sure the goal expression is perfectly accurate.
+
+For instance - for the task "throw away the trash in the bin" when there is a bin, an open empty chips packet, an empty soda can, a closed and full soda bottle, and several full candy bars on the table, the goal should be:
+
+"predicates": [
+        {{"name": "on", "args": ["chips_packet", "bin"]}},
+        {{"name": "on", "args": ["soda_can", "bin"]}},
+]
+
+This is because only the chips and soda are empty and clearly trash. Everything else is still usable!
+
+
+Return a single JSON object with this structure (no code fencing):
+{{
+    "bboxes": [
+        {{"box_2d": [ymin, xmin, ymax, xmax], "label": "object name"}},
+        ...
+    ],
+    "predicates": [
+        {{"name": "predicate_name", "args": ["object1", "object2"]}},
+        ...
+    ]
+}}
+
+Use the object labels you detect in Task 1 when creating predicates in Task 2.
+Only reference objects that you actually detected in the image.

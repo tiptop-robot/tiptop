@@ -1,0 +1,90 @@
+
+[project]
+name = "tiptop"
+version = "0.0.1"
+description = "TiPToP"
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["robotics"]
+authors = [
+    { name = "William Shen", email = "willshen@mit.edu" },
+    { name = "Nishanth Kumar", email = "njk@mit.edu" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+
+dependencies = [
+    "aiohttp",
+    "bamboo-franka-client>=0.1.1",
+    "dill",
+    "google-genai>=0.6.0",
+    "jaxtyping",
+    "matplotlib",
+    "msgpack-numpy>=0.4.8",
+    "numpy",
+    "omegaconf",
+    "opencv-python>=4.12,<4.13",  # API changes too often
+    "pyrealsense2",
+    "rerun-sdk==0.27.3",  # API changes too often
+    "ruamel.yaml",
+    "scipy",
+    "supervision>=0.17.0",
+    "tyro",
+    "websockets>=12.0",
+    # Git dependencies
+    "SAM-2 @ git+https://github.com/facebookresearch/segment-anything-2.git",
+]
+
+[project.optional-dependencies]
+ur5 = [
+    "ur_rtde",
+]
+sam-server = [
+    "fastapi",
+    "pydantic",
+    "uvicorn",
+]
+dev = [
+    "pre-commit",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 120
+
+[project.scripts]
+# SAM server
+sam-server = "tiptop.scripts.sam_server:main"
+
+# Setup and calibration scripts
+tiptop-config = "tiptop.scripts.tiptop_config:entrypoint"
+calibrate-wrist-cam = "tiptop.scripts.calibrate_wrist_cam:calibrate_wrist_camera_entrypoint"
+compute-gripper-mask = "tiptop.scripts.compute_gripper_mask:compute_gripper_mask_entrypoint"
+paint-gripper-mask = "tiptop.scripts.paint_gripper_mask:paint_gripper_mask_entrypoint"
+
+# Robot observations
+get-joint-positions = "tiptop.scripts.get_observation:get_joint_positions"
+
+# Visualization scripts
+viz-calibration = "tiptop.scripts.viz_calibration:viz_calibration_entrypoint"
+viz-gripper-cam = "tiptop.scripts.viz_gripper_cam:viz_gripper_cam_entrypoint"
+viz-scene = "tiptop.scripts.viz_scene:viz_scene_entrypoint"
+
+# Moving robot and gripper
+go-home = "tiptop.scripts.go_to_conf:go_to_home_entrypoint"
+go-to-capture = "tiptop.scripts.go_to_conf:go_to_capture_entrypoint"
+gripper-open = "tiptop.scripts.gripper_actuate:gripper_open_entrypoint"
+gripper-close = "tiptop.scripts.gripper_actuate:gripper_close_entrypoint"
+
+# Main tiptop demo
+tiptop-run = "tiptop.tiptop_run:entrypoint"
+
+# tiptop h5 run
+tiptop-h5 = "tiptop.tiptop_h5:entrypoint"
+
+# tiptop as a service
+tiptop-server = "tiptop.tiptop_websocket_server:entrypoint"
+
+[tool.setuptools.packages]
+find = { include = ["tiptop", "tiptop.*"] }

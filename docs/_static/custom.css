@@ -1,0 +1,9 @@
+/* Show underline on links in content area so they're distinguishable from body text */
+.content a {
+    text-decoration: underline;
+}
+
+/* Suppress browser default purple visited link color */
+a:visited {
+    color: inherit;
+}

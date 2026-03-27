@@ -1,0 +1,35 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+*.egg-info/
+
+.env
+
+# tiptop cache and outputs
+tiptop/.cache/
+tiptop_outputs/
+tiptop_outputs*
+tiptop_h5_outputs/
+tiptop_server_outputs/
+
+# JetBrains
+.idea/
+
+# MacOS
+.DS_Store
+
+# pixi environments (keep pixi.lock for reproducibility)
+.pixi/
+!.pixi/config.toml
+
+# curobo and cutamp
+curobo/
+cutamp/
+
+# pyzed wheels
+pyzed*.whl
+
+# claude
+.claude
