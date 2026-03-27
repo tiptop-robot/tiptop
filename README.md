@@ -30,7 +30,7 @@ pixi run docs-serve     # Serve with live reload
 
 ## Contributing
 
-See the [Contributing Guide](https://tiptop-robot.readthedocs.io/en/latest/contributing.html) for development setup and guidelines.
+See the [Contributing Guide](https://tiptop-robot.readthedocs.io/en/latest/contributing) for development setup and guidelines.
 
 ## Citation
 
