@@ -1,5 +1,7 @@
 import json
 import logging
+import shutil
+import subprocess
 import threading
 import time
 from contextlib import contextmanager
@@ -14,11 +16,52 @@ import torch
 from jaxtyping import Float, UInt8
 from PIL import Image
 
+from tiptop.config import tiptop_config_path
 from tiptop.perception.cameras.zed_camera import ZedCamera, convert_svo_to_mp4
 from tiptop.perception.utils import get_o3d_pcd
 from tiptop.perception.visualization import visualize_detections, visualize_masks
+from tiptop.utils import gripper_mask_path
 
 _log = logging.getLogger(__name__)
+_GIT_CWD = Path(__file__).parent
+
+
+def _collect_git_info() -> dict:
+    """Return git commit hash and dirty status for metadata."""
+    try:
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=_GIT_CWD,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        dirty = bool(
+            subprocess.check_output(
+                ["git", "status", "--porcelain"],
+                cwd=_GIT_CWD,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            ).strip()
+        )
+        return {"commit": commit, "dirty": dirty}
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        _log.warning("Failed to collect git info", exc_info=True)
+        return {"commit": None, "dirty": None}
+
+
+def _get_git_diff() -> str | None:
+    """Return the full git diff against HEAD, or None if git is unavailable or the diff is empty."""
+    try:
+        diff = subprocess.check_output(
+            ["git", "diff", "HEAD"],
+            cwd=_GIT_CWD,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        return diff if diff else None
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        _log.warning("Failed to get git diff", exc_info=True)
+        return None
 
 
 @contextmanager
@@ -48,7 +91,7 @@ def record_cameras(recordings: list[tuple[ZedCamera, Path, Path | None]]) -> Gen
         camera.start_recording(str(svo_path))
         thread = threading.Thread(target=recording_loop)
         thread.start()
-        _log.info(f"Started recording camera {get_serial(camera)} to {svo_path}")
+        _log.info(f"Started recording camera {camera.serial} to {svo_path}")
         stop_events.append(stop_event)
         threads.append(thread)
 
@@ -61,7 +104,7 @@ def record_cameras(recordings: list[tuple[ZedCamera, Path, Path | None]]) -> Gen
         for (camera, svo_path, _), thread in zip(recordings, threads):
             thread.join(timeout=3.0)
             camera.stop_recording()
-            _log.info(f"Stopped recording camera {get_serial(camera)}")
+            _log.info(f"Stopped recording camera {camera.serial}")
 
         # Convert to MP4 after all cameras have stopped
         for camera, svo_path, mp4_path in recordings:
@@ -89,46 +132,47 @@ def save_perception_outputs(
     rgb_map: Float[np.ndarray, "n 3"],
     bboxes: list[dict],
     masks: np.ndarray,
-    task_instruction: str,
     save_dir: Path,
 ):
-    """Save perception outputs to disk."""
+    """Save perception outputs to disk.
+
+    Visualization files (rgb.png, bboxes_viz.png, masks_viz.png) are saved at the top
+    level of save_dir for quick access. Raw data files go into save_dir/perception/.
+    """
     start_time = time.perf_counter()
     save_dir.mkdir(parents=True, exist_ok=True)
-
-    # Task instruction
-    with open(save_dir / "task_instruction.txt", "w", encoding="utf-8") as f:
-        f.write(task_instruction)
+    perception_dir = save_dir / "perception"
+    perception_dir.mkdir(exist_ok=True)
 
     # Camera image
     cv2.imwrite(str(save_dir / "rgb.png"), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
 
     # Intrinsics
     intrinsics_dict = {"intrinsics": intrinsics_matrix.tolist()}
-    with open(save_dir / "intrinsics.json", "w") as f:
+    with open(perception_dir / "intrinsics.json", "w") as f:
         json.dump(intrinsics_dict, f, indent=2)
 
     # Convert depth from meters to millimeters for uint16 storage
     depth_mm = depth_map * 1000.0
     depth_mm = np.clip(depth_mm, 0, 65535)
     depth_uint16 = depth_mm.astype(np.uint16)
-    cv2.imwrite(str(save_dir / "depth.png"), depth_uint16)
+    cv2.imwrite(str(perception_dir / "depth.png"), depth_uint16)
 
     # Create point cloud and write
     pcd = get_o3d_pcd(xyz_map, rgb_map)
-    o3d.io.write_point_cloud(str(save_dir / "pointcloud.ply"), pcd)
+    o3d.io.write_point_cloud(str(perception_dir / "pointcloud.ply"), pcd)
 
     # Write bboxes
     rgb_pil = Image.fromarray(rgb)
     bbox_viz = visualize_detections(rgb_pil, bboxes, output_path=str(save_dir / "bboxes_viz.png"), show_plot=False)
-    with open(save_dir / "bboxes.json", "w") as f:
+    with open(perception_dir / "bboxes.json", "w") as f:
         json.dump(bboxes, f, indent=2)
 
     # Write masks
     masks_viz = visualize_masks(rgb_pil, masks, bboxes)
     cv2.imwrite(str(save_dir / "masks_viz.png"), cv2.cvtColor(masks_viz, cv2.COLOR_RGB2BGR))
     masks_bool = masks > 0.5
-    np.savez_compressed(str(save_dir / "masks.npz"), masks_bool)  # masks are sparse so can compress
+    np.savez_compressed(str(perception_dir / "masks.npz"), masks_bool)  # masks are sparse so can compress
 
     save_dur = time.perf_counter() - start_time
     _log.info(f"Saved perception outputs to {save_dir} in {save_dur:.2f}s")
@@ -136,10 +180,65 @@ def save_perception_outputs(
 
 
 def save_run_outputs(save_dir: Path, env, grasps: dict) -> None:
-    """Save cuTAMP environment and grasps to disk."""
-    with open(save_dir / "cutamp_env.pkl", "wb") as f:
+    """Save cuTAMP environment, grasps, and run artifacts (config, gripper mask) to disk."""
+    # Save cutamp environment and grasps
+    perception_dir = save_dir / "perception"
+    perception_dir.mkdir(parents=True, exist_ok=True)
+    with open(perception_dir / "cutamp_env.pkl", "wb") as f:
         dill.dump(env, f)
-    _log.info(f"Saved cutamp env to {save_dir}/cutamp_env.pkl")
+    _log.info(f"Saved cutamp env to {perception_dir}/cutamp_env.pkl")
 
-    torch.save(grasps, save_dir / "grasps.pt")
-    _log.info(f"Saved grasps to {save_dir}/grasps.pt")
+    torch.save(grasps, perception_dir / "grasps.pt")
+    _log.info(f"Saved grasps to {perception_dir}/grasps.pt")
+
+    # tiptop config and gripper mask for reproducibility
+    shutil.copy2(tiptop_config_path, save_dir / "tiptop.yml")
+    _log.info(f"Saved tiptop config to {save_dir}/tiptop.yml")
+    if gripper_mask_path.exists():
+        shutil.copy2(gripper_mask_path, save_dir / "gripper_mask.png")
+        _log.info(f"Saved gripper mask to {save_dir}/gripper_mask.png")
+
+
+def save_run_metadata(
+    save_dir: Path,
+    timestamp: str,
+    task_instruction: str,
+    q_at_capture: np.ndarray,
+    world_from_cam: np.ndarray,
+    perception_duration: float | None,
+    grounded_atoms: list[dict] | None,
+    planning_success: bool | None,
+    planning_failure_reason: str | None,
+    planning_duration: float | None,
+) -> None:
+    """Save structured run metadata to metadata.json."""
+    git_info = _collect_git_info()
+    if git_info["dirty"]:
+        diff = _get_git_diff()
+        if diff:
+            (save_dir / "git.diff").write_text(diff, encoding="utf-8")
+
+    metadata = {
+        "task_instruction": task_instruction,
+        "timestamp": timestamp,
+        "observation": {
+            "q_at_capture": q_at_capture.tolist(),
+            "world_from_cam": world_from_cam.tolist(),
+        },
+        "perception": {
+            "grounded_atoms": grounded_atoms,
+            "duration": round(perception_duration, 3) if perception_duration is not None else None,
+        },
+        "planning": {
+            "success": planning_success,
+            "failure_reason": planning_failure_reason,
+            "duration": round(planning_duration, 3) if planning_duration is not None else None,
+        },
+        "version": "1.0.0",
+        "git": git_info,
+    }
+    with open(save_dir / "metadata.json", "w") as f:
+        json.dump(metadata, f, indent=2)
+    _log.info(f"Saved run metadata to {save_dir}/metadata.json")
+
+

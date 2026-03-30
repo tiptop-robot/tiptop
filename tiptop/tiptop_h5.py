@@ -7,6 +7,7 @@ without a real robot, saving a serialized plan JSON file for downstream evaluati
 import asyncio
 import logging
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -21,7 +22,7 @@ from tiptop.config import tiptop_cfg
 from tiptop.motion_planning import build_curobo_solvers
 from tiptop.perception.cameras import Frame
 from tiptop.planning import build_tamp_config, run_planning, save_tiptop_plan, serialize_plan
-from tiptop.recording import save_run_outputs
+from tiptop.recording import save_run_metadata, save_run_outputs
 from tiptop.tiptop_run import Observation, run_perception
 from tiptop.utils import add_file_handler, get_robot_rerun, print_tiptop_banner, remove_file_handler, setup_logging
 
@@ -153,12 +154,17 @@ def _run_h5(
                     include_workspace=False,
                 )
 
+        timestamp = datetime.now().isoformat(timespec="seconds")
         _log.info("Running perception pipeline...")
-        env, all_surfaces, processed_scene = asyncio.run(_run_perception())
-
+        perception_start = time.perf_counter()
+        env, all_surfaces, processed_scene, grounded_atoms = asyncio.run(_run_perception())
+        perception_duration = time.perf_counter() - perception_start
         _log.info("Planning with cuTAMP...")
+        cutamp_plan = None
+        planning_duration = None
+        failure_reason = None
         try:
-            cutamp_plan, _, failure_reason = run_planning(
+            cutamp_plan, planning_duration, failure_reason = run_planning(
                 env,
                 config,
                 observation.q_init,
@@ -170,6 +176,18 @@ def _run_h5(
             )
         finally:
             save_run_outputs(save_dir, env, processed_scene.grasps)
+            save_run_metadata(
+                save_dir=save_dir,
+                timestamp=timestamp,
+                task_instruction=task_instruction,
+                q_at_capture=observation.q_init,
+                world_from_cam=observation.world_from_cam,
+                perception_duration=perception_duration,
+                grounded_atoms=grounded_atoms,
+                planning_success=cutamp_plan is not None,
+                planning_failure_reason=failure_reason,
+                planning_duration=planning_duration,
+            )
 
         if cutamp_plan is not None:
             plan_path = save_dir / "tiptop_plan.json"
