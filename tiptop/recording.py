@@ -27,7 +27,10 @@ _GIT_CWD = Path(__file__).parent
 
 
 def _collect_git_info() -> dict:
-    """Return git commit hash and dirty status for metadata."""
+    """Return git commit hash and dirty status for metadata.
+
+    pixi.lock is excluded from the dirty check as it's not relevant for debugging
+    """
     try:
         commit = subprocess.check_output(
             ["git", "rev-parse", "HEAD"],
@@ -37,7 +40,7 @@ def _collect_git_info() -> dict:
         ).strip()
         dirty = bool(
             subprocess.check_output(
-                ["git", "status", "--porcelain"],
+                ["git", "status", "--porcelain", "--", ".", ":(exclude)pixi.lock"],
                 cwd=_GIT_CWD,
                 stderr=subprocess.DEVNULL,
                 text=True,
@@ -50,10 +53,10 @@ def _collect_git_info() -> dict:
 
 
 def _get_git_diff() -> str | None:
-    """Return the full git diff against HEAD, or None if git is unavailable or the diff is empty."""
+    """Return the full git diff against HEAD, excluding pixi.lock, or None if unavailable or empty."""
     try:
         diff = subprocess.check_output(
-            ["git", "diff", "HEAD"],
+            ["git", "diff", "HEAD", "--", ".", ":(exclude)pixi.lock"],
             cwd=_GIT_CWD,
             stderr=subprocess.DEVNULL,
             text=True,
