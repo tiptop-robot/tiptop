@@ -5,6 +5,7 @@ import subprocess
 import threading
 import time
 from contextlib import contextmanager
+from functools import cache
 from pathlib import Path
 from typing import Generator
 
@@ -23,7 +24,17 @@ from tiptop.perception.visualization import visualize_detections, visualize_mask
 from tiptop.utils import gripper_mask_path
 
 _log = logging.getLogger(__name__)
-_GIT_CWD = Path(__file__).parent
+
+
+@cache
+def _get_git_root() -> Path:
+    """Return the repository root."""
+    return Path(subprocess.check_output(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=Path(__file__).parent,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    ).strip())
 
 
 def _collect_git_info() -> dict:
@@ -32,32 +43,33 @@ def _collect_git_info() -> dict:
     pixi.lock is excluded from the dirty check as it's not relevant for debugging
     """
     try:
+        root = _get_git_root()
         commit = subprocess.check_output(
             ["git", "rev-parse", "HEAD"],
-            cwd=_GIT_CWD,
+            cwd=root,
             stderr=subprocess.DEVNULL,
             text=True,
         ).strip()
-        dirty = bool(
-            subprocess.check_output(
-                ["git", "status", "--porcelain", "--", ".", ":(exclude)pixi.lock"],
-                cwd=_GIT_CWD,
-                stderr=subprocess.DEVNULL,
-                text=True,
-            ).strip()
+        porcelain = subprocess.check_output(
+            ["git", "status", "--porcelain", "--", ".", ":(exclude)pixi.lock"],
+            cwd=root,
+            stderr=subprocess.DEVNULL,
+            text=True,
         )
-        return {"commit": commit, "dirty": dirty}
+        dirty = bool(porcelain.strip())
+        return {"commit": commit, "dirty": dirty, "porcelain": porcelain.strip() if dirty else None}
     except (FileNotFoundError, subprocess.CalledProcessError):
         _log.warning("Failed to collect git info", exc_info=True)
-        return {"commit": None, "dirty": None}
+        return {"commit": None, "dirty": None, "porcelain": None}
 
 
 def _get_git_diff() -> str | None:
     """Return the full git diff against HEAD, excluding pixi.lock, or None if unavailable or empty."""
     try:
+        root = _get_git_root()
         diff = subprocess.check_output(
             ["git", "diff", "HEAD", "--", ".", ":(exclude)pixi.lock"],
-            cwd=_GIT_CWD,
+            cwd=root,
             stderr=subprocess.DEVNULL,
             text=True,
         )
