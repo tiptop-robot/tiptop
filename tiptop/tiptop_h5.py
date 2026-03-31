@@ -133,8 +133,8 @@ def _run_h5(
     robot_rr = get_robot_rerun()
     robot_rr.set_joint_positions(observation.q_init)
 
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    save_dir = Path(output_dir) / timestamp
+    timestamp = datetime.now()
+    save_dir = Path(output_dir) / timestamp.strftime("%Y-%m-%d_%H-%M-%S")
     save_dir.mkdir(parents=True, exist_ok=True)
     file_handler = add_file_handler(save_dir / "tiptop_run.log")
 
@@ -154,7 +154,6 @@ def _run_h5(
                     include_workspace=False,
                 )
 
-        timestamp = datetime.now().isoformat(timespec="seconds")
         _log.info("Running perception pipeline...")
         perception_start = time.perf_counter()
         env, all_surfaces, processed_scene, grounded_atoms = asyncio.run(_run_perception())
@@ -178,7 +177,7 @@ def _run_h5(
             save_run_outputs(save_dir, env, processed_scene.grasps)
             save_run_metadata(
                 save_dir=save_dir,
-                timestamp=timestamp,
+                timestamp=timestamp.isoformat(timespec="seconds"),
                 task_instruction=task_instruction,
                 q_at_capture=observation.q_init,
                 world_from_cam=observation.world_from_cam,
