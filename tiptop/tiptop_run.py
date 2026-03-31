@@ -472,6 +472,7 @@ async def run_perception(
         detection_results["bboxes"],
         detection_results["masks"],
         save_dir,
+        gripper_mask,
     )
 
     if log_to_rerun:

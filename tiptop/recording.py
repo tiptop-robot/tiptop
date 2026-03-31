@@ -1,6 +1,5 @@
 import json
 import logging
-import shutil
 import subprocess
 import threading
 import time
@@ -14,14 +13,13 @@ import dill
 import numpy as np
 import open3d as o3d
 import torch
-from jaxtyping import Float, UInt8
+from jaxtyping import Bool, Float, UInt8
 from PIL import Image
 
 from tiptop.config import tiptop_config_path
 from tiptop.perception.cameras.zed_camera import ZedCamera, convert_svo_to_mp4
 from tiptop.perception.utils import get_o3d_pcd
 from tiptop.perception.visualization import visualize_detections, visualize_masks
-from tiptop.utils import gripper_mask_path
 
 _log = logging.getLogger(__name__)
 
@@ -148,6 +146,7 @@ def save_perception_outputs(
     bboxes: list[dict],
     masks: np.ndarray,
     save_dir: Path,
+    gripper_mask: Bool[np.ndarray, "h w"] | None = None,
 ):
     """Save perception outputs to disk.
 
@@ -189,13 +188,17 @@ def save_perception_outputs(
     masks_bool = masks > 0.5
     np.savez_compressed(str(perception_dir / "masks.npz"), masks_bool)  # masks are sparse so can compress
 
+    if gripper_mask is not None:
+        gripper_mask_img = Image.fromarray(gripper_mask.astype(np.uint8) * 255)
+        gripper_mask_img.save(str(perception_dir / "gripper_mask.png"))
+
     save_dur = time.perf_counter() - start_time
     _log.info(f"Saved perception outputs to {save_dir} in {save_dur:.2f}s")
     return bbox_viz, masks_viz
 
 
 def save_run_outputs(save_dir: Path, env, grasps: dict) -> None:
-    """Save cuTAMP environment, grasps, and run artifacts (config, gripper mask) to disk."""
+    """Save cuTAMP environment, grasps, and run artifacts (config) to disk."""
     # Save cutamp environment and grasps
     perception_dir = save_dir / "perception"
     perception_dir.mkdir(parents=True, exist_ok=True)
@@ -206,12 +209,9 @@ def save_run_outputs(save_dir: Path, env, grasps: dict) -> None:
     torch.save(grasps, perception_dir / "grasps.pt")
     _log.info(f"Saved grasps to {perception_dir}/grasps.pt")
 
-    # tiptop config and gripper mask for reproducibility
+    # tiptop config for reproducibility
     shutil.copy2(tiptop_config_path, save_dir / "tiptop.yml")
     _log.info(f"Saved tiptop config to {save_dir}/tiptop.yml")
-    if gripper_mask_path.exists():
-        shutil.copy2(gripper_mask_path, save_dir / "gripper_mask.png")
-        _log.info(f"Saved gripper mask to {save_dir}/gripper_mask.png")
 
 
 def save_run_metadata(
