@@ -238,7 +238,7 @@ def save_run_metadata(
         "task_instruction": task_instruction,
         "timestamp": timestamp,
         "observation": {
-            "q_at_capture": q_at_capture.tolist(),
+            "q_at_capture": q_at_capture,
             "world_from_cam": world_from_cam.tolist(),
         },
         "perception": {
