@@ -23,6 +23,23 @@ from tiptop.ur5.ur5_client import UR5Client
 
 gripper_mask_path = config_dir / "assets" / "gripper_mask.png"
 
+REQUIRED_CUTAMP_VERSION = "0.0.2"
+
+
+def check_cutamp_version() -> None:
+    """Raise RuntimeError if the installed cuTAMP version does not match REQUIRED_CUTAMP_VERSION."""
+    try:
+        import cutamp
+
+        version = cutamp.__version__
+    except AttributeError:
+        version = "<0.0.2"
+    if version != REQUIRED_CUTAMP_VERSION:
+        raise RuntimeError(
+            f"cuTAMP version mismatch: required {REQUIRED_CUTAMP_VERSION}, found {version}. "
+            "Please run: pixi run install-cutamp"
+        )
+
 
 class ServerHealthCheckError(Exception):
     """Raised when a server health check fails."""

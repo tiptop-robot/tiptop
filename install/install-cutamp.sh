@@ -11,36 +11,47 @@ fi
 
 REPO_URL="https://github.com/tiptop-robot/cuTAMP.git"
 INSTALL_DIR="cutamp"
+REQUIRED_VERSION=$(python -c "from tiptop.utils import REQUIRED_CUTAMP_VERSION; print(REQUIRED_CUTAMP_VERSION)")
 
-echo "==> Installing cuTAMP..."
+echo "==> Installing cuTAMP v$REQUIRED_VERSION..."
 
-# Check if directory exist
+# Skip if correct version is already installed
+installed_version=$(python -c "import cutamp; print(cutamp.__version__)" 2>/dev/null || echo "")
+if [ "$installed_version" = "$REQUIRED_VERSION" ]; then
+    echo "✓ cuTAMP v$REQUIRED_VERSION already installed, skipping"
+    exit 0
+elif [ -n "$installed_version" ]; then
+    echo "Installed cuTAMP version ($installed_version) != required ($REQUIRED_VERSION), updating..."
+else
+    echo "cuTAMP v$REQUIRED_VERSION not installed, installing..."
+fi
+
+# Check if directory exists and is a healthy git repo
 should_clone=true
 if [ -d "$INSTALL_DIR" ]; then
-    echo "cutamp already exists at $INSTALL_DIR"
-
-    # Check git integrity
     cd "$INSTALL_DIR"
     if git fsck --full &> /dev/null; then
-        echo "✓ cutamp repository is healthy"
+        echo "Updating existing cuTAMP repository to v$REQUIRED_VERSION..."
+        git fetch --tags
+        git checkout "v$REQUIRED_VERSION"
         should_clone=false
         cd ..
     else
         echo "✗ cutamp repository is corrupted, removing..."
         cd ..
-        rm -rf $INSTALL_DIR
+        rm -rf "$INSTALL_DIR"
     fi
 fi
 
-# Clone
+# Clone at the required version tag
 if [ "$should_clone" = true ]; then
-    echo "Cloning cuTAMP"
-    git clone "$REPO_URL" "$INSTALL_DIR"
+    echo "Cloning cuTAMP v$REQUIRED_VERSION..."
+    git clone --branch "v$REQUIRED_VERSION" "$REPO_URL" "$INSTALL_DIR"
 fi
 
 # Install
-cd cutamp
-echo "Installing cuTAMP"
+cd "$INSTALL_DIR"
+echo "Installing cuTAMP..."
 pip install -e . --no-build-isolation --no-deps
 cd ..
-echo "✓ cuTAMP installed successfully"
+echo "✓ cuTAMP v$REQUIRED_VERSION installed successfully"
