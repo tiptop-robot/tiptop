@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from pathlib import Path
 import cv2
 import dill
@@ -10,6 +11,10 @@ import torch
 from PIL import Image
 from omegaconf import OmegaConf
 
+from curobo.types.base import TensorDeviceType
+from cutamp.envs.utils import TAMPEnvironment
+from cutamp.robots import load_robot_container
+from cutamp.robots.utils import RerunRobot
 from cutamp.utils.common import pose_list_to_mat4x4
 from cutamp.utils.rerun_utils import log_curobo_pose_to_rerun, curobo_to_rerun, log_curobo_mesh_to_rerun
 from tiptop.perception.m2t2 import m2t2_to_tiptop_transform
@@ -48,26 +53,92 @@ def viz_grasps(grasps, num_grasps_per_object: int):
             )
 
 
-def viz_tiptop_outputs(outputs_dir: str, visualize_grasps: bool = True, num_grasps_per_object: int = 30, log_transform_arrows: bool = True):
+def viz_tiptop_plan(tiptop_plan: dict, cutamp_env: TAMPEnvironment, robot_rr: RerunRobot, robot_type: str) -> None:
+    """Visualize a TiPToP plan on the tiptop_execution timeline, including object poses while grasped."""
+    kin_model = load_robot_container(robot_type, TensorDeviceType()).kin_model
+
+    # Set initial object poses and robot position
+    curr_time = 0.0
+    timeline = "tiptop_execution"
+    rr.set_time(timeline, duration=curr_time)
+    robot_rr.set_joint_positions(tiptop_plan["q_init"])
+    obj_to_current_pose = {
+        obj.name: pose_list_to_mat4x4(obj.pose).numpy() for obj in cutamp_env.movables + cutamp_env.statics
+    }
+    for obj, mat4x4 in obj_to_current_pose.items():
+        rr.log(f"world/{obj}", rr.Transform3D(translation=mat4x4[:3, 3], mat3x3=mat4x4[:3, :3]))
+
+    grasped_obj: str | None = None
+    ee_from_obj: np.ndarray | None = None  # (4, 4) rigid transform from EE to grasped object
+    last_q: np.ndarray = tiptop_plan["q_init"]
+
+    for action_dict in tiptop_plan.get("steps", []):
+        if action_dict["type"] == "trajectory":
+            traj = torch.tensor(action_dict["positions"])
+            dt = action_dict["dt"]
+            end_time = curr_time + len(traj) * dt
+            times = [rr.TimeColumn(timeline, duration=np.linspace(curr_time, end_time, len(traj)))]
+            for key, columns in robot_rr.get_rr_columns(traj).items():
+                rr.send_columns(key, indexes=times * len(columns), columns=columns)
+
+            if grasped_obj is not None:
+                world_from_ee = kin_model.get_state(traj.cuda()).ee_pose.get_matrix().cpu().numpy()
+                world_from_obj = world_from_ee @ ee_from_obj
+                obj_cols = rr.Transform3D.columns(
+                    mat3x3=world_from_obj[:, :3, :3], translation=world_from_obj[:, :3, 3]
+                )
+                rr.send_columns(f"world/{grasped_obj}", indexes=times * len(obj_cols), columns=obj_cols)
+                obj_to_current_pose[grasped_obj] = world_from_obj[-1]
+
+            curr_time = end_time
+            last_q = action_dict["positions"][-1]
+
+        elif action_dict["type"] == "gripper":
+            if action_dict["action"] == "close":
+                # Parse object name from label e.g. "Pick(crackers_in_wrapper, grasp1, q1)"
+                match = re.match(r"\w+\((\w+)", action_dict["label"])
+                if match is None:
+                    raise ValueError(f"Could not parse object name from label: {action_dict['label']}")
+                grasped_obj = match.group(1)
+                world_from_ee = (
+                    kin_model.get_state(torch.tensor(last_q, device="cuda")[None]).ee_pose.get_matrix()[0].cpu().numpy()
+                )
+                ee_from_obj = np.linalg.inv(world_from_ee) @ obj_to_current_pose[grasped_obj]
+            elif action_dict["action"] == "open":
+                grasped_obj = None
+                ee_from_obj = None
+            else:
+                raise ValueError(f"Unknown gripper action: {action_dict['action']}")
+        else:
+            raise ValueError(f"Unknown action type in tiptop plan: {action_dict['type']}")
+
+
+def viz_tiptop_run(
+    save_dir: str,
+    visualize_grasps: bool = True,
+    visualize_plan: bool = True,
+    num_grasps_per_object: int = 30,
+    log_transform_arrows: bool = True,
+) -> None:
     setup_logging()
-    outputs_dir = Path(outputs_dir)
-    perception_dir = outputs_dir / "perception"
+    save_dir = Path(save_dir)
+    perception_dir = save_dir / "perception"
 
     # Load metadata
-    metadata_path = outputs_dir / "metadata.json"
+    metadata_path = save_dir / "metadata.json"
     if not metadata_path.exists():
-        raise FileNotFoundError(f"Could not find metadata.json in {outputs_dir}")
-    with open(outputs_dir / "metadata.json") as f:
+        raise FileNotFoundError(f"Could not find metadata.json in {save_dir}")
+    with open(save_dir / "metadata.json") as f:
         metadata = json.load(f)
     if metadata["version"] != "1.0.0":
         raise NotImplementedError(f"Version {metadata['version']} not supported")
     _log.info(f"Task instruction: {metadata['task_instruction']}")
     _log.info(f"Grounded Goal Atoms: {metadata['perception']['grounded_atoms']}")
     # Start rerun for visualization
-    rr.init(application_id="viz_tiptop_outputs",spawn=True)
+    rr.init(application_id="viz_tiptop_outputs", spawn=True)
 
     # Load tiptop config from this run
-    tiptop_cfg = OmegaConf.load(outputs_dir / "tiptop.yml")
+    tiptop_cfg = OmegaConf.load(save_dir / "tiptop.yml")
     robot_type = tiptop_cfg["robot"]["type"]
     robot_rr = get_robot_rerun(robot_type=robot_type)
     robot_rr.set_joint_positions(metadata["observation"]["q_at_capture"])
@@ -79,18 +150,22 @@ def viz_tiptop_outputs(outputs_dir: str, visualize_grasps: bool = True, num_gras
         intrinsics = json.load(f)
     K = np.array(intrinsics["intrinsics"])
     rr.log("cam", rr.Pinhole(image_from_camera=K))
-    rgb = Image.open(outputs_dir / "rgb.png")
+    rgb = Image.open(save_dir / "rgb.png")
     rr.log("cam/rgb", rr.Image(rgb))
 
     # Mask out depth where gripper is present
-    gripper_mask = cv2.imread(str(perception_dir / "gripper_mask.png"), cv2.IMREAD_GRAYSCALE)
     depth = cv2.imread(str(perception_dir / "depth.png"), cv2.IMREAD_UNCHANGED)
-    depth[gripper_mask == 255] = 0
+    gripper_mask_path = perception_dir / "gripper_mask.png"
+    if gripper_mask_path.exists():
+        gripper_mask = cv2.imread(str(perception_dir / "gripper_mask.png"), cv2.IMREAD_GRAYSCALE)
+        depth[gripper_mask == 255] = 0
+    else:
+        _log.warning("Gripper mask not found, using full depth")
     rr.log("cam/depth", rr.DepthImage(depth, meter=1000.0))
 
     # Bounding boxes and mask visualization
-    bboxes_viz = Image.open(outputs_dir / "bboxes_viz.png")
-    masks_viz = Image.open(outputs_dir / "masks_viz.png")
+    bboxes_viz = Image.open(save_dir / "bboxes_viz.png")
+    masks_viz = Image.open(save_dir / "masks_viz.png")
     rr.log("bboxes_viz", rr.Image(bboxes_viz))
     rr.log("masks_viz", rr.Image(masks_viz))
 
@@ -103,16 +178,6 @@ def viz_tiptop_outputs(outputs_dir: str, visualize_grasps: bool = True, num_gras
         grasps = torch.load(perception_dir / "grasps.pt", weights_only=False, map_location="cpu")
         viz_grasps(grasps, num_grasps_per_object)
 
-    # Log tiptop plan
-    tiptop_plan_path = outputs_dir / "tiptop_plan.json"
-    if not tiptop_plan_path.exists():
-        _log.warning(f"Could not find tiptop_plan.json in {outputs_dir}")
-        tiptop_plan = {}
-    else:
-        tiptop_plan = load_tiptop_plan(tiptop_plan_path)
-    if tiptop_plan["version"] != "1.0.0":
-        raise NotImplementedError(f"TiPToP plan version {metadata['version']} not supported")
-
     # Load TAMPEnvironment using dill (variant of pickle)
     try:
         with open(perception_dir / "cutamp_env.pkl", "rb") as f:
@@ -120,63 +185,38 @@ def viz_tiptop_outputs(outputs_dir: str, visualize_grasps: bool = True, num_gras
 
         # Log all the objects
         for obj in cutamp_env.movables:
-            log_curobo_pose_to_rerun(
-                f"world/{obj.name}", obj, static_transform=False, log_arrows=log_transform_arrows
-            )
-            rr.log(
-                f"world/{obj.name}/mesh", curobo_to_rerun(obj.get_mesh(), compute_vertex_normals=True),
-                static=True
-            )
+            log_curobo_pose_to_rerun(f"world/{obj.name}", obj, static_transform=False, log_arrows=log_transform_arrows)
+            rr.log(f"world/{obj.name}/mesh", curobo_to_rerun(obj.get_mesh(), compute_vertex_normals=True), static=True)
         for obj in cutamp_env.statics:
-            log_curobo_mesh_to_rerun(f"world/{obj.name}", obj.get_mesh(), static_transform=True,
-                                     log_arrows=log_transform_arrows)
+            log_curobo_mesh_to_rerun(
+                f"world/{obj.name}", obj.get_mesh(), static_transform=True, log_arrows=log_transform_arrows
+            )
     except Exception as e:
         _log.warning(f"Failed to load cutamp_env.pkl, skipping (source may have changed): {e}")
 
-    start_time = 0.0
-    timeline = "tiptop_execution"
+    if not visualize_plan:
+        return
 
-    rr.set_time(timeline, duration=start_time)
-    robot_rr.set_joint_positions(tiptop_plan["q_init"])
+    # Load and visualize the tiptop plan
+    tiptop_plan_path = save_dir / "tiptop_plan.json"
+    if not tiptop_plan_path.exists():
+        _log.warning(f"Could not find tiptop_plan.json in {save_dir}")
+        return
+    tiptop_plan = load_tiptop_plan(tiptop_plan_path)
+    if tiptop_plan["version"] != "1.0.0":
+        raise NotImplementedError(f"TiPToP plan version {tiptop_plan['version']} not supported")
 
-    obj_to_current_pose = {obj.name: pose_list_to_mat4x4(obj.pose) for obj in cutamp_env.movables + cutamp_env.statics}
-    for obj, mat4x4 in obj_to_current_pose.items():
-        rr.log(f"world/{obj}", rr.Transform3D(translation=mat4x4[:3, 3], mat3x3=mat4x4[:3, :3]))
-
-    for action_dict in tiptop_plan.get("steps", []):
-        if action_dict["type"] == "trajectory":
-            traj = torch.tensor(action_dict["positions"])
-            dt = action_dict["dt"]
-            end_time = start_time + len(traj) * dt
-            times = [rr.TimeColumn(timeline, duration=np.linspace(start_time, end_time, len(traj)))]
-            key_to_columns = robot_rr.get_rr_columns(traj)
-            for key, columns in key_to_columns.items():
-                rr.send_columns(key, indexes=times * len(columns), columns=columns)
-            start_time = end_time
-        else:
-            print(action_dict["type"])
-
-            robot_state = world.kin_model.get_state(plan.position)
-            world_from_ee = robot_state.ee_pose.get_matrix()
-            world_from_obj = world_from_ee @ ee_from_obj
-            ts = visualizer.log_joint_trajectory_with_mat4x4(
-                traj=plan.position,
-                mat4x4_key=f"world/{obj}",
-                mat4x4=world_from_obj,
-                timeline=timeline,
-                start_time=ts,
-                dt=dt,
-            )
-    print()
+    viz_tiptop_plan(tiptop_plan, cutamp_env, robot_rr, robot_type)
 
 
-def viz_tiptop_outputs_entrypoint():
+def viz_tiptop_run_entrypoint():
     import tyro
 
     # tyro.cli(viz_tiptop_outputs)
-    outputs_dir = "/home/labubu/workspace/tiptop/tiptop_outputs/success/2026-03-31/2026-03-31_19-34-47"
-    viz_tiptop_outputs(outputs_dir, visualize_grasps=True)
+    save_dir = "/mnt/lexar/workspace/tiptop-ws/tiptop/tiptop_outputs/success/2026-03-31/2026-03-31_19-34-47"
+    # save_dir = "/tmp/tiptop_h5_outputs/2026-04-01_16-09-02"
+    viz_tiptop_run(save_dir, visualize_grasps=True)
 
 
 if __name__ == "__main__":
-    viz_tiptop_outputs_entrypoint()
+    viz_tiptop_run_entrypoint()
