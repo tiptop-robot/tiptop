@@ -1,7 +1,11 @@
 
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "tiptop"
-version = "0.0.1"
+dynamic = ["version"]
 description = "TiPToP"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -89,3 +93,7 @@ tiptop-server = "tiptop.tiptop_websocket_server:entrypoint"
 
 [tool.setuptools.packages]
 find = { include = ["tiptop", "tiptop.*"] }
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
