@@ -56,6 +56,7 @@ def viz_grasps(grasps, num_grasps_per_object: int):
 def viz_tiptop_plan(tiptop_plan: dict, cutamp_env: TAMPEnvironment, robot_rr: RerunRobot, robot_type: str) -> None:
     """Visualize a TiPToP plan on the tiptop_execution timeline, including object poses while grasped."""
     kin_model = load_robot_container(robot_type, TensorDeviceType()).kin_model
+    device = kin_model.tensor_args.device
 
     # Set initial object poses and robot position
     curr_time = 0.0
@@ -74,7 +75,7 @@ def viz_tiptop_plan(tiptop_plan: dict, cutamp_env: TAMPEnvironment, robot_rr: Re
 
     for action_dict in tiptop_plan.get("steps", []):
         if action_dict["type"] == "trajectory":
-            traj = torch.tensor(action_dict["positions"])
+            traj = torch.tensor(action_dict["positions"], device=device)
             dt = action_dict["dt"]
             end_time = curr_time + len(traj) * dt
             times = [rr.TimeColumn(timeline, duration=np.linspace(curr_time, end_time, len(traj)))]
@@ -82,7 +83,7 @@ def viz_tiptop_plan(tiptop_plan: dict, cutamp_env: TAMPEnvironment, robot_rr: Re
                 rr.send_columns(key, indexes=times * len(columns), columns=columns)
 
             if grasped_obj is not None:
-                world_from_ee = kin_model.get_state(traj.cuda()).ee_pose.get_matrix().cpu().numpy()
+                world_from_ee = kin_model.get_state(traj).ee_pose.get_matrix().cpu().numpy()
                 world_from_obj = world_from_ee @ ee_from_obj
                 obj_cols = rr.Transform3D.columns(
                     mat3x3=world_from_obj[:, :3, :3], translation=world_from_obj[:, :3, 3]
@@ -101,7 +102,7 @@ def viz_tiptop_plan(tiptop_plan: dict, cutamp_env: TAMPEnvironment, robot_rr: Re
                     raise ValueError(f"Could not parse object name from label: {action_dict['label']}")
                 grasped_obj = match.group(1)
                 world_from_ee = (
-                    kin_model.get_state(torch.tensor(last_q, device="cuda")[None]).ee_pose.get_matrix()[0].cpu().numpy()
+                    kin_model.get_state(torch.tensor(last_q, device=device)[None]).ee_pose.get_matrix()[0].cpu().numpy()
                 )
                 ee_from_obj = np.linalg.inv(world_from_ee) @ obj_to_current_pose[grasped_obj]
             elif action_dict["action"] == "open":
@@ -120,6 +121,16 @@ def viz_tiptop_run(
     num_grasps_per_object: int = 30,
     log_transform_arrows: bool = True,
 ) -> None:
+    """
+    Visualize TiPToP outputs (perception and plan) from a saved run directory in Rerun.
+
+    Args:
+        save_dir: Path to the saved run directory containing metadata.json, rgb.png, perception/, etc.
+        visualize_grasps: Whether to visualize the M2T2 grasp candidates.
+        visualize_plan: Whether to visualize the TiPToP plan trajectory, including object poses while grasped.
+        num_grasps_per_object: Maximum number of grasp candidates to display per object.
+        log_transform_arrows: Whether to log coordinate frame arrows on object transforms.
+    """
     setup_logging()
     save_dir = Path(save_dir)
     perception_dir = save_dir / "perception"
@@ -145,13 +156,13 @@ def viz_tiptop_run(
 
     # Log camera and RGB
     world_from_cam = np.array(metadata["observation"]["world_from_cam"])
-    rr.log("cam", rr.Transform3D(mat3x3=world_from_cam[:3, :3], translation=world_from_cam[:3, 3]))
+    rr.log("cam", rr.Transform3D(mat3x3=world_from_cam[:3, :3], translation=world_from_cam[:3, 3]), static=True)
     with open(perception_dir / "intrinsics.json", "r") as f:
         intrinsics = json.load(f)
     K = np.array(intrinsics["intrinsics"])
-    rr.log("cam", rr.Pinhole(image_from_camera=K))
+    rr.log("cam", rr.Pinhole(image_from_camera=K), static=True)
     rgb = Image.open(save_dir / "rgb.png")
-    rr.log("cam/rgb", rr.Image(rgb))
+    rr.log("cam/rgb", rr.Image(rgb), static=True)
 
     # Mask out depth where gripper is present
     depth = cv2.imread(str(perception_dir / "depth.png"), cv2.IMREAD_UNCHANGED)
@@ -161,13 +172,13 @@ def viz_tiptop_run(
         depth[gripper_mask == 255] = 0
     else:
         _log.warning("Gripper mask not found, using full depth")
-    rr.log("cam/depth", rr.DepthImage(depth, meter=1000.0))
+    rr.log("cam/depth", rr.DepthImage(depth, meter=1000.0), static=True)
 
     # Bounding boxes and mask visualization
     bboxes_viz = Image.open(save_dir / "bboxes_viz.png")
     masks_viz = Image.open(save_dir / "masks_viz.png")
-    rr.log("bboxes_viz", rr.Image(bboxes_viz))
-    rr.log("masks_viz", rr.Image(masks_viz))
+    rr.log("bboxes_viz", rr.Image(bboxes_viz), static=True)
+    rr.log("masks_viz", rr.Image(masks_viz), static=True)
 
     # Point cloud
     pcd = o3d.io.read_point_cloud(perception_dir / "pointcloud.ply")
@@ -212,10 +223,7 @@ def viz_tiptop_run(
 def viz_tiptop_run_entrypoint():
     import tyro
 
-    # tyro.cli(viz_tiptop_outputs)
-    save_dir = "/mnt/lexar/workspace/tiptop-ws/tiptop/tiptop_outputs/success/2026-03-31/2026-03-31_19-34-47"
-    # save_dir = "/tmp/tiptop_h5_outputs/2026-04-01_16-09-02"
-    viz_tiptop_run(save_dir, visualize_grasps=True)
+    tyro.cli(viz_tiptop_run)
 
 
 if __name__ == "__main__":

@@ -70,6 +70,7 @@ get-joint-positions = "tiptop.scripts.get_observation:get_joint_positions"
 viz-calibration = "tiptop.scripts.viz_calibration:viz_calibration_entrypoint"
 viz-gripper-cam = "tiptop.scripts.viz_gripper_cam:viz_gripper_cam_entrypoint"
 viz-scene = "tiptop.scripts.viz_scene:viz_scene_entrypoint"
+viz-tiptop-run = "tiptop.scripts.viz_tiptop_run:viz_tiptop_run_entrypoint"
 
 # Moving robot and gripper
 go-home = "tiptop.scripts.go_to_conf:go_to_home_entrypoint"
