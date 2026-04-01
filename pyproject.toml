@@ -97,3 +97,8 @@ find = { include = ["tiptop", "tiptop.*"] }
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
 local_scheme = "no-local-version"
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: end-to-end integration tests that require external services and API keys (run with: pytest -m integration)",
+]
