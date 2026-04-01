@@ -70,21 +70,22 @@ def get_robot_client() -> RobotClient:
         raise ValueError(f"Unknown robot type: {cfg.robot.type}")
 
 
-def get_robot_rerun() -> RerunRobot:
+def get_robot_rerun(robot_type: str | None = None) -> RerunRobot:
     """Get a RerunRobot instance for the robot."""
-    cfg = tiptop_cfg()
-    if cfg.robot.type == "fr3_robotiq":
+    if robot_type is None:
+        robot_type = tiptop_cfg().robot.type
+    if robot_type == "fr3_robotiq":
         return load_fr3_robotiq_rerun()
-    elif cfg.robot.type == "panda_robotiq":
+    elif robot_type == "panda_robotiq":
         return load_panda_robotiq_rerun()
-    elif cfg.robot.type == "panda":
+    elif robot_type == "panda":
         return load_franka_rerun()
-    elif cfg.robot.type == "fr3":
+    elif robot_type == "fr3":
         return load_fr3_franka_rerun()
-    elif cfg.robot.type == "ur5":
+    elif robot_type == "ur5":
         return load_ur5_rerun()
     else:
-        raise ValueError(f"Unknown robot type: {cfg.robot.type}")
+        raise ValueError(f"Unknown robot type: {robot_type}")
 
 
 def load_gripper_mask() -> Bool[np.ndarray, "h w"]:
