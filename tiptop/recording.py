@@ -21,6 +21,7 @@ from tiptop.config import tiptop_config_path
 from tiptop.perception.cameras.zed_camera import ZedCamera, convert_svo_to_mp4
 from tiptop.perception.utils import get_o3d_pcd
 from tiptop.perception.visualization import visualize_detections, visualize_masks
+from tiptop.utils import NumpyEncoder
 
 _log = logging.getLogger(__name__)
 
@@ -239,7 +240,7 @@ def save_run_metadata(
         "timestamp": timestamp,
         "observation": {
             "q_at_capture": q_at_capture,
-            "world_from_cam": world_from_cam.tolist(),
+            "world_from_cam": world_from_cam,
         },
         "perception": {
             "grounded_atoms": grounded_atoms,
@@ -254,7 +255,5 @@ def save_run_metadata(
         "git": git_info,
     }
     with open(save_dir / "metadata.json", "w") as f:
-        json.dump(metadata, f, indent=2)
+        json.dump(metadata, f, indent=2, cls=NumpyEncoder)
     _log.info(f"Saved run metadata to {save_dir}/metadata.json")
-
-

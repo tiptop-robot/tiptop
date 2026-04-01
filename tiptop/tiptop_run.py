@@ -77,7 +77,7 @@ class Observation:
 
     frame: Frame
     world_from_cam: Float[np.ndarray, "4 4"]
-    q_init: Float[np.ndarray, "n"]
+    q_init: Float[np.ndarray | list, "n"]
 
 
 @dataclass(frozen=True)

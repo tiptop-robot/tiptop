@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 from contextlib import contextmanager
@@ -25,6 +26,13 @@ gripper_mask_path = config_dir / "assets" / "gripper_mask.png"
 
 class ServerHealthCheckError(Exception):
     """Raised when a server health check fails."""
+
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
 
 
 @cache

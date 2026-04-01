@@ -17,14 +17,9 @@ from cutamp.scripts.utils import default_constraint_to_mult, default_constraint_
 from cutamp.task_planning.constraints import StablePlacement
 from jaxtyping import Float
 
+from tiptop.utils import NumpyEncoder
+
 _log = logging.getLogger(__name__)
-
-
-class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super().default(obj)
 
 
 def save_tiptop_plan(serialized_plan: dict, output_path: Path) -> None:
