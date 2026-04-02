@@ -310,7 +310,8 @@ def convert_svo_to_mp4(svo_path: Path, mp4_path: Path, crf: int = 20):
                     raise RuntimeError(f"Failed to grab frame at position {zed.get_svo_position()}: {err}")
     finally:
         proc.stdin.close()
-        _, stderr = proc.communicate()
+        stderr = proc.stderr.read()
+        proc.wait()
         zed.close()
 
     if proc.returncode != 0:
