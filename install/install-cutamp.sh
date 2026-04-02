@@ -11,7 +11,11 @@ fi
 
 REPO_URL="https://github.com/tiptop-robot/cuTAMP.git"
 INSTALL_DIR="cutamp"
-REQUIRED_VERSION=$(python -c "from tiptop.utils import REQUIRED_CUTAMP_VERSION; print(REQUIRED_CUTAMP_VERSION)")
+REQUIRED_VERSION=$(python -c "
+import re
+m = re.search(r'REQUIRED_CUTAMP_VERSION = \"([^\"]+)\"', open('tiptop/utils.py').read())
+print(m.group(1))
+")
 
 echo "==> Installing cuTAMP v$REQUIRED_VERSION..."
 
