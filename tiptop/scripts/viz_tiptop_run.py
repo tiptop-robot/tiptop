@@ -190,6 +190,7 @@ def viz_tiptop_run(
         viz_grasps(grasps, num_grasps_per_object)
 
     # Load TAMPEnvironment using dill (variant of pickle)
+    cutamp_env = None
     try:
         with open(perception_dir / "cutamp_env.pkl", "rb") as f:
             cutamp_env = dill.load(f)
@@ -216,6 +217,10 @@ def viz_tiptop_run(
     tiptop_plan = load_tiptop_plan(tiptop_plan_path)
     if tiptop_plan["version"] != "1.0.0":
         raise NotImplementedError(f"TiPToP plan version {tiptop_plan['version']} not supported")
+
+    if cutamp_env is None:
+        _log.warning("Cannot visualize plan without cutamp_env, skipping")
+        return
 
     viz_tiptop_plan(tiptop_plan, cutamp_env, robot_rr, robot_type)
 
