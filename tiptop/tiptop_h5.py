@@ -138,6 +138,7 @@ def _run_h5(
     save_dir.mkdir(parents=True, exist_ok=True)
     file_handler = add_file_handler(save_dir / "tiptop_run.log")
 
+    exit_code = 1
     try:
 
         async def _run_perception():
@@ -196,15 +197,19 @@ def _run_h5(
             _log.warning(f"No plan found: {failure_reason}")
 
         _log.info(f"Saved outputs to {save_dir}")
+    except Exception:
+        _log.exception("TiPToP run failed")
+    else:
+        exit_code = 0
     finally:
         remove_file_handler(file_handler)
+        rr.disconnect()
+        # Force exit to avoid segfault during GPU resource cleanup (CUDA/Warp/cuRobo destructors)
+        os._exit(exit_code)
 
 
 def entrypoint():
     tyro.cli(_run_h5)
-    rr.disconnect()
-    # Force exit to avoid segfault during GPU resource cleanup (CUDA/Warp/cuRobo destructors)
-    os._exit(0)
 
 
 if __name__ == "__main__":
