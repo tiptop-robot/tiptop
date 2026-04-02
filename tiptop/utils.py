@@ -143,7 +143,10 @@ def setup_logging(level: int = logging.INFO):
 
             # Manually build the formatted string with colors
             log_time = self.formatTime(record, self.datefmt)
-            return f"{log_time} - {record.name} - {colored_levelname} - {record.getMessage()}"
+            message = f"{log_time} - {record.name} - {colored_levelname} - {record.getMessage()}"
+            if record.exc_info:
+                message = message + "\n" + self.formatException(record.exc_info)
+            return message
 
     # Define the log format
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
