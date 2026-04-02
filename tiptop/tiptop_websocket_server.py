@@ -192,10 +192,24 @@ class TiptopPlanningServer:
         save_dir.mkdir(parents=True, exist_ok=True)
         file_handler = add_file_handler(save_dir / "tiptop_run.log")
 
+        # Extract and preprocess observation
+        rgb = obs["rgb"].astype(np.uint8)
+        depth = obs["depth"].copy().astype(np.float32)
+        K = obs["intrinsics"].astype(np.float32)
+        world_from_cam = obs["world_from_cam"].astype(np.float32)
+        task_instruction = obs["task"]
+        q_init = obs["q_init"]
+
+        # Preprocess depth: remove invalid values and truncate range
+        depth = np.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
+        depth[depth < 0] = 0.0
+        depth[depth > self._cfg.perception.depth_trunc_m] = 0.0
+
+        frame = Frame(serial="static", timestamp=0.0, rgb=rgb, intrinsics=K, depth=depth)
+        observation = Observation(frame=frame, world_from_cam=world_from_cam, q_init=q_init)
+
         env = None
         processed_scene = None
-        task_instruction = ""
-        observation = None
         grounded_atoms = None
         perception_duration = None
         planning_duration = None
@@ -213,23 +227,7 @@ class TiptopPlanningServer:
                 _log.info(f"Saving Rerun stream to {rrd_path}")
             rerun_robot = get_robot_rerun()
 
-            # Extract and preprocess observation
-            rgb = obs["rgb"].astype(np.uint8)
-            depth = obs["depth"].copy().astype(np.float32)
-            K = obs["intrinsics"].astype(np.float32)
-            world_from_cam = obs["world_from_cam"].astype(np.float32)
-            task_instruction = obs["task"]
-            q_init = obs["q_init"]
-
-            # Preprocess depth: remove invalid values and truncate range
-            depth = np.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
-            depth[depth < 0] = 0.0
-            depth[depth > self._cfg.perception.depth_trunc_m] = 0.0
-
             _log.info(f"Processing: RGB shape={rgb.shape}, depth shape={depth.shape}, task='{task_instruction}'")
-
-            frame = Frame(serial="static", timestamp=0.0, rgb=rgb, intrinsics=K, depth=depth)
-            observation = Observation(frame=frame, world_from_cam=world_from_cam, q_init=q_init)
             rerun_robot.set_joint_positions(q_init)
 
             connector = aiohttp.TCPConnector(limit=10, force_close=True)
