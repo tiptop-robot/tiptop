@@ -19,17 +19,6 @@ print(m.group(1))
 
 echo "==> Installing cuTAMP v$REQUIRED_VERSION..."
 
-# Skip if correct version is already installed
-installed_version=$(python -c "import cutamp; print(cutamp.__version__)" 2>/dev/null || echo "")
-if [ "$installed_version" = "$REQUIRED_VERSION" ]; then
-    echo "✓ cuTAMP v$REQUIRED_VERSION already installed, skipping"
-    exit 0
-elif [ -n "$installed_version" ]; then
-    echo "Installed cuTAMP version ($installed_version) != required ($REQUIRED_VERSION), updating..."
-else
-    echo "cuTAMP v$REQUIRED_VERSION not installed, installing..."
-fi
-
 # Check if directory exists and is a healthy git repo
 should_clone=true
 if [ -d "$INSTALL_DIR" ]; then
