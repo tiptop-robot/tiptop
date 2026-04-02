@@ -29,7 +29,8 @@ uv sync
 Next, download the simulation assets:
 
 ```bash
-uvx hf download owhan/DROID-sim-environments --repo-type dataset --local-dir assets
+curl -O https://pi-sim-assets.s3.us-east-1.amazonaws.com/assets.zip 
+unzip assets.zip
 ```
 
 This downloads **5 scenes** (scene IDs 1–5) as USD files into the `assets/` directory. Each scene has multiple variants that place objects in different configurations:
