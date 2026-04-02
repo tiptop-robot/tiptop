@@ -84,12 +84,12 @@ html_theme_options = {
         "color-link": "#ffffff",
         "color-link--hover": "#aaaaaa",
     },
-    "sidebar_hide_name": False,
-    "navigation_with_keys": True,
-    "top_of_page_button": "edit",
-    "source_repository": "https://github.com/NishanthJKumar/TiPToP-robot",
+    "top_of_page_buttons": [],
+    "source_repository": "https://github.com/tiptop-robot/tiptop",
     "source_branch": "main",
     "source_directory": "docs/",
+    "sidebar_hide_name": False,
+    "navigation_with_keys": True,
 }
 
 # Copybutton configuration
