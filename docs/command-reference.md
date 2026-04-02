@@ -417,13 +417,13 @@ Replays and visualizes the outputs of a saved TiPToP run in Rerun. Loads percept
 
 ```bash
 # Visualize a run directory
-viz-tiptop-run --save-dir tiptop_outputs/eval/2026-01-24T15-30-00/
+viz-tiptop-run --save-dir tiptop_outputs/eval/2026-01-24_15-30-00/
 
 # Visualize perception only, skip plan animation
-viz-tiptop-run --save-dir tiptop_outputs/eval/2026-01-24T15-30-00/ --no-visualize-plan
+viz-tiptop-run --save-dir tiptop_outputs/eval/2026-01-24_15-30-00/ --no-visualize-plan
 
 # Show fewer grasps
-viz-tiptop-run --save-dir tiptop_outputs/eval/2026-01-24T15-30-00/ --num-grasps-per-object 10
+viz-tiptop-run --save-dir tiptop_outputs/eval/2026-01-24_15-30-00/ --num-grasps-per-object 10
 ```
 
 A Rerun window will open automatically. Use the `tiptop_execution` timeline to step through the planned trajectory. The `cam` entity shows the camera pose and image at capture time, and `world/` contains all objects and their poses throughout execution.
