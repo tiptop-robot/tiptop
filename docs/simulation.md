@@ -32,7 +32,15 @@ Next, download the simulation assets:
 uvx hf download owhan/DROID-sim-environments --repo-type dataset --local-dir assets
 ```
 
-This downloads **3 scenes** (scene IDs 1–3) as USD files into the `assets/` directory, each corresponding to a distinct tabletop environment.
+This downloads **5 scenes** (scene IDs 1–5) as USD files into the `assets/` directory. Each scene has multiple variants that place objects in different configurations:
+
+| Scene | Variants     |
+|-------|--------------|
+| 1     | 10 (0–9)     |
+| 2     | 10 (0–9)     |
+| 3     | 11 (0–8, 10–11) |
+| 4     | 10 (0–9)     |
+| 5     | 10 (0–9)     |
 
 Set your Google API key (required for Gemini, which TiPToP uses for object detection and task parsing). You can generate one following the instructions at [https://ai.google.dev/gemini-api/docs/api-key](https://ai.google.dev/gemini-api/docs/api-key).
 
@@ -62,15 +70,15 @@ Then, run the simulator in headless mode:
 
 ```bash
 cd $TIPTOP_DIR/droid-sim-evals
-uv run tiptop_eval.py --scene <scene_id> --instruction "<instruction>"
+uv run tiptop_eval.py --scene <scene_id> --variant <variant_id> --instruction "<instruction>"
 ```
 
-Replace `<scene_id>` with the scene number (1, 2, or 3).
+Replace `<scene_id>` with the scene number (1–5) and `<variant_id>` with the variant number (e.g. 0).
 
-To visualize execution in IsaacLab, add `--no-headless`:
+To visualize execution in IsaacLab, add `--headless False`:
 
 ```bash
-uv run tiptop_eval.py --scene <scene_id> --instruction "<instruction>" --no-headless
+uv run tiptop_eval.py --scene <scene_id> --variant <variant_id> --instruction "<instruction>" --headless False
 ```
 
 ## Offline H5 mode
@@ -79,18 +87,18 @@ In this mode, observations are stored in an H5 file ahead of time. TiPToP reads 
 
 ### Generate an H5 observation file
 
-An example H5 file is provided at `droid-sim-evals/tiptop_assets/tiptop_obs.h5` to get started quickly.
+An example H5 file is provided at `droid-sim-evals/tiptop_assets/tiptop_scene1_obs.h5` to get started quickly.
 
-To generate your own from a specific scene:
+To generate your own from a specific scene and variant:
 
 ```bash
 cd $TIPTOP_DIR/droid-sim-evals
-uv run save_h5_obs.py --scene <scene_id> --output tiptop_assets/your-save-path.h5
+uv run save_h5_obs.py --scene <scene_id> --variant <variant_id> --output tiptop_assets/your-save-path.h5
 ```
 
 ### Run TiPToP on the H5 file
 
-Run TiPToP on the H5 observation file to produce a trajectory. An example trajectory is available at `droid-sim-evals/tiptop_assets/tiptop_plan.json`.
+Run TiPToP on the H5 observation file to produce a trajectory. An example trajectory is available at `droid-sim-evals/tiptop_assets/tiptop_scene1_plan.json`.
 
 To run on your own files:
 
@@ -109,11 +117,11 @@ Once TiPToP has written the trajectory, replay it in the simulator. To use the e
 
 ```bash
 cd $TIPTOP_DIR/droid-sim-evals
-uv run replay_json_traj.py --json-path tiptop_assets/tiptop_plan.json --scene 1
+uv run replay_json_traj.py --json-path tiptop_assets/tiptop_scene1_plan.json --scene 1 --variant 0
 ```
 
-To visualize in IsaacLab, add `--no-headless`:
+To visualize in IsaacLab, add `--headless False`:
 
 ```bash
-uv run replay_json_traj.py --json-path tiptop_assets/tiptop_plan.json --scene 1 --no-headless
+uv run replay_json_traj.py --json-path tiptop_assets/tiptop_scene1_plan.json --scene 1 --variant 0 --headless False
 ```
