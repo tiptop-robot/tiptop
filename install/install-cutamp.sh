@@ -41,7 +41,7 @@ if [ -d "$INSTALL_DIR" ]; then
         should_clone=false
         cd ..
     else
-        echo "✗ cutamp repository is corrupted, removing..."
+        echo "✗ cuTAMP repository is corrupted, removing..."
         cd ..
         rm -rf "$INSTALL_DIR"
     fi
