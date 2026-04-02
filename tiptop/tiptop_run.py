@@ -693,6 +693,7 @@ def _sync_entrypoint(
     exit_code = 1
     try:
         asyncio.run(async_entrypoint(container, config, output_dir, execute_plan))
+        exit_code = 0
     except (UserExitException, KeyboardInterrupt) as e:
         if isinstance(e, KeyboardInterrupt):
             _log.info("Interrupted during startup/shutdown (Ctrl+C)")

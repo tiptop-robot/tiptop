@@ -6,6 +6,7 @@ __pycache__/
 *.egg-info/
 
 .env
+.env.*
 
 # tiptop cache and outputs
 tiptop/.cache/
