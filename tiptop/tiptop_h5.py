@@ -24,7 +24,7 @@ from tiptop.perception.cameras import Frame
 from tiptop.planning import build_tamp_config, run_planning, save_tiptop_plan, serialize_plan
 from tiptop.recording import save_run_metadata, save_run_outputs
 from tiptop.tiptop_run import Observation, run_perception
-from tiptop.utils import add_file_handler, get_robot_rerun, print_tiptop_banner, remove_file_handler, setup_logging
+from tiptop.utils import add_file_handler, check_cutamp_version, get_robot_rerun, print_tiptop_banner, remove_file_handler, setup_logging
 
 _log = logging.getLogger(__name__)
 
@@ -113,6 +113,7 @@ def _run_h5(
         raise ValueError("--task-instruction is required")
 
     print_tiptop_banner()
+    check_cutamp_version()
 
     cfg = tiptop_cfg()
     config = build_tamp_config(

@@ -52,6 +52,7 @@ from tiptop.recording import (
 from tiptop.utils import (
     RobotClient,
     add_file_handler,
+    check_cutamp_version,
     get_robot_client,
     get_robot_rerun,
     load_gripper_mask,
@@ -669,6 +670,7 @@ def _sync_entrypoint(
     assert num_particles > 0
 
     print_tiptop_banner()
+    check_cutamp_version()
 
     cfg = tiptop_cfg()
     config = build_tamp_config(

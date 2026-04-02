@@ -17,7 +17,7 @@ from cutamp.scripts.utils import default_constraint_to_mult, default_constraint_
 from cutamp.task_planning.constraints import StablePlacement
 from jaxtyping import Float
 
-from tiptop.utils import NumpyEncoder, check_cutamp_version
+from tiptop.utils import NumpyEncoder
 
 _log = logging.getLogger(__name__)
 
@@ -86,7 +86,6 @@ def run_planning(
 
     Returns (None, elapsed, failure_reason) if cuTAMP fails to find a plan.
     """
-    check_cutamp_version()
     constraint_to_tol = default_constraint_to_tol.copy()
     constraint_to_mult = default_constraint_to_mult.copy()
     # Loosen tolerances slightly to enable finding a plan practically

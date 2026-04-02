@@ -14,7 +14,6 @@ import http
 import json
 import logging
 import time
-import traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -35,7 +34,7 @@ from tiptop.perception.cameras import Frame
 from tiptop.planning import build_tamp_config, run_planning, save_tiptop_plan, serialize_plan
 from tiptop.recording import save_run_metadata, save_run_outputs
 from tiptop.tiptop_run import Observation, run_perception
-from tiptop.utils import NumpyEncoder, add_file_handler, get_robot_rerun, print_tiptop_banner, remove_file_handler, setup_logging
+from tiptop.utils import NumpyEncoder, add_file_handler, check_cutamp_version, get_robot_rerun, print_tiptop_banner, remove_file_handler, setup_logging
 
 _log = logging.getLogger(__name__)
 
@@ -157,10 +156,9 @@ class TiptopPlanningServer:
             except websockets.ConnectionClosed:
                 _log.info(f"Connection from {websocket.remote_address} closed")
                 break
-            except Exception:
-                error_msg = traceback.format_exc()
-                _log.error(f"Error processing request: {error_msg}")
-                await websocket.send(error_msg)
+            except Exception as e:
+                _log.exception("Error processing request")
+                await websocket.send(str(e))
                 await websocket.close(
                     code=websockets.frames.CloseCode.INTERNAL_ERROR,
                     reason="Internal server error. Traceback included in previous frame.",
@@ -285,7 +283,7 @@ class TiptopPlanningServer:
             }
 
         except Exception as e:
-            _log.error(f"Pipeline error: {e}", exc_info=True)
+            _log.exception("Pipeline error")
             if not failure_reason:
                 failure_reason = str(e)
             return {
@@ -331,6 +329,7 @@ def _run_server(
         include_workspace: If True, include real-robot workspace cuboids in the collision world.
     """
     print_tiptop_banner()
+    check_cutamp_version()
     setup_logging()
     logging.getLogger("websockets.server").setLevel(logging.INFO)
 
