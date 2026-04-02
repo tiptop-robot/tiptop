@@ -42,6 +42,9 @@ This downloads **5 scenes** (scene IDs 1–5) as USD files into the `assets/` di
 | 4     | 10 (0–9)     |
 | 5     | 10 (0–9)     |
 
+To see what the scenes look like, and also an example natural language command in each scene, look at the [README for the sim evals repo](https://github.com/tiptop-robot/droid-sim-evals).
+
+
 Set your Google API key (required for Gemini, which TiPToP uses for object detection and task parsing). You can generate one following the instructions at [https://ai.google.dev/gemini-api/docs/api-key](https://ai.google.dev/gemini-api/docs/api-key).
 
 ```bash
