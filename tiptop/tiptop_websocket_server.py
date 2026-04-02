@@ -192,23 +192,9 @@ class TiptopPlanningServer:
         save_dir.mkdir(parents=True, exist_ok=True)
         file_handler = add_file_handler(save_dir / "tiptop_run.log")
 
-        # Extract and preprocess observation
-        rgb = obs["rgb"].astype(np.uint8)
-        depth = obs["depth"].copy().astype(np.float32)
-        K = obs["intrinsics"].astype(np.float32)
-        world_from_cam = obs["world_from_cam"].astype(np.float32)
-        task_instruction = obs["task"]
-        q_init = obs["q_init"]
-
-        # Preprocess depth: remove invalid values and truncate range
-        depth = np.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
-        depth[depth < 0] = 0.0
-        depth[depth > self._cfg.perception.depth_trunc_m] = 0.0
-
-        frame = Frame(serial="static", timestamp=0.0, rgb=rgb, intrinsics=K, depth=depth)
-        observation = Observation(frame=frame, world_from_cam=world_from_cam, q_init=q_init)
-
         env = None
+        task_instruction = None
+        observation = None
         processed_scene = None
         grounded_atoms = None
         perception_duration = None
@@ -218,6 +204,22 @@ class TiptopPlanningServer:
         try:
             # Reset collision world to clear stale cuTAMP state from previous run
             self._reset_motion_planning()
+
+            # Extract and preprocess observation
+            rgb = obs["rgb"].astype(np.uint8)
+            depth = obs["depth"].copy().astype(np.float32)
+            K = obs["intrinsics"].astype(np.float32)
+            world_from_cam = obs["world_from_cam"].astype(np.float32)
+            task_instruction = obs["task"]
+            q_init = obs["q_init"]
+
+            # Preprocess depth: remove invalid values and truncate range
+            depth = np.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
+            depth[depth < 0] = 0.0
+            depth[depth > self._cfg.perception.depth_trunc_m] = 0.0
+
+            frame = Frame(serial="static", timestamp=0.0, rgb=rgb, intrinsics=K, depth=depth)
+            observation = Observation(frame=frame, world_from_cam=world_from_cam, q_init=q_init)
 
             # Initialize rerun if enabled (idempotent)
             rr.init("tiptop_server", recording_id=timestamp, spawn=self._rerun_mode == "stream")
@@ -298,8 +300,8 @@ class TiptopPlanningServer:
                 save_dir=save_dir,
                 timestamp=iso_timestamp,
                 task_instruction=task_instruction,
-                q_at_capture=observation.q_init,
-                world_from_cam=observation.world_from_cam,
+                q_at_capture=observation.q_init if observation is not None else None,
+                world_from_cam=observation.world_from_cam if observation is not None else None,
                 perception_duration=perception_duration,
                 grounded_atoms=grounded_atoms,
                 planning_success=cutamp_plan is not None,
