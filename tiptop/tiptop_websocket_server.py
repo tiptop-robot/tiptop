@@ -13,6 +13,7 @@ import asyncio
 import http
 import json
 import logging
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -341,7 +342,18 @@ def _run_server(
         rerun_mode=rerun_mode,
         include_workspace=include_workspace,
     )
-    server.serve_forever()
+    exit_code = 1
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        _log.info("Shutting down server (Ctrl+C)")
+        exit_code = 0
+    except Exception:
+        _log.exception("Server failed")
+    finally:
+        rr.disconnect()
+        # Force exit to avoid segfault during GPU resource cleanup (CUDA/Warp/cuRobo destructors)
+        os._exit(exit_code)
 
 
 def entrypoint():
