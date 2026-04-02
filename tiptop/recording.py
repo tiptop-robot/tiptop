@@ -220,9 +220,9 @@ def save_run_outputs(save_dir: Path, env, grasps: dict) -> None:
 def save_run_metadata(
     save_dir: Path,
     timestamp: str,
-    task_instruction: str,
-    q_at_capture: np.ndarray,
-    world_from_cam: np.ndarray,
+    task_instruction: str | None,
+    q_at_capture: np.ndarray | list | None,
+    world_from_cam: np.ndarray | list | None,
     perception_duration: float | None,
     grounded_atoms: list[dict] | None,
     planning_success: bool | None,
