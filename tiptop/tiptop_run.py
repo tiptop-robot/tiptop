@@ -2,6 +2,7 @@ import asyncio
 import logging
 import shutil
 import signal
+import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -628,6 +629,9 @@ async def async_entrypoint(container: _DemoContainer, config: TAMPConfiguration,
 
                     if execute_plan:
                         _label_rollout(save_dir, output_dir, date_str, timestamp)
+                except Exception:
+                    _log.exception("TiPToP run failed")
+                    raise
                 finally:
                     # Always remove the file handler after the run
                     remove_file_handler(file_handler)
@@ -686,6 +690,7 @@ def _sync_entrypoint(
         max_workers=4, initializer=signal.signal, initargs=(signal.SIGINT, signal.SIG_IGN)
     )
 
+    exit_code = 1
     try:
         asyncio.run(async_entrypoint(container, config, output_dir, execute_plan))
     except (UserExitException, KeyboardInterrupt) as e:
@@ -693,18 +698,17 @@ def _sync_entrypoint(
             _log.info("Interrupted during startup/shutdown (Ctrl+C)")
         else:
             _log.debug("Exit detected")
-    except Exception:
-        _log.error("Unexpected error detected", exc_info=True)
-        raise
+        exit_code = 0
     finally:
         if container is not None:
-            _log.info("Tearing down cameras and robot...")
+            _log.debug("Tearing down cameras and robot...")
             container.cam.close()
             if container.external_cam is not None:
                 container.external_cam.close()
             container.robot.close()
         if _executor_pool is not None:
             _executor_pool.shutdown(wait=False, cancel_futures=True)
+        sys.exit(exit_code)
 
 
 def entrypoint():
