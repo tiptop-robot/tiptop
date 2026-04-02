@@ -292,20 +292,20 @@ class TiptopPlanningServer:
                 "error": str(e),
             }
         finally:
-            if env is not None and processed_scene is not None and observation is not None:
+            if env is not None and processed_scene is not None:
                 save_run_outputs(save_dir, env, processed_scene.grasps)
-                save_run_metadata(
-                    save_dir=save_dir,
-                    timestamp=iso_timestamp,
-                    task_instruction=task_instruction,
-                    q_at_capture=observation.q_init,
-                    world_from_cam=observation.world_from_cam,
-                    perception_duration=perception_duration,
-                    grounded_atoms=grounded_atoms,
-                    planning_success=cutamp_plan is not None,
-                    planning_failure_reason=failure_reason,
-                    planning_duration=planning_duration,
-                )
+            save_run_metadata(
+                save_dir=save_dir,
+                timestamp=iso_timestamp,
+                task_instruction=task_instruction,
+                q_at_capture=observation.q_init,
+                world_from_cam=observation.world_from_cam,
+                perception_duration=perception_duration,
+                grounded_atoms=grounded_atoms,
+                planning_success=cutamp_plan is not None,
+                planning_failure_reason=failure_reason,
+                planning_duration=planning_duration,
+            )
             if file_handler is not None:
                 remove_file_handler(file_handler)
 
