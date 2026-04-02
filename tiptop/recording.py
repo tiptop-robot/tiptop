@@ -17,6 +17,7 @@ import torch
 from jaxtyping import Bool, Float, UInt8
 from PIL import Image
 
+import tiptop
 from tiptop.config import tiptop_config_path
 from tiptop.perception.cameras.zed_camera import ZedCamera, convert_svo_to_mp4
 from tiptop.perception.utils import get_o3d_pcd
@@ -252,6 +253,7 @@ def save_run_metadata(
             "duration": round(planning_duration, 3) if planning_duration is not None else None,
         },
         "version": "1.0.0",
+        "tiptop_version": tiptop.__version__,
         "git": git_info,
     }
     with open(save_dir / "metadata.json", "w") as f:
