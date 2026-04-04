@@ -93,9 +93,8 @@ tiptop-server = "tiptop.tiptop_websocket_server:entrypoint"
 
 [tool.pytest.ini_options]
 markers = [
-    "integration: requires external perception services (FoundationStereo, SAM2, M2T2, Gemini)",
+    "integration: requires M2T2 server and GOOGLE_API_KEY",
 ]
-addopts = "-m 'not integration'"
 
 [tool.setuptools.packages]
 find = { include = ["tiptop", "tiptop.*"] }

@@ -93,7 +93,15 @@ def run_tiptop_h5(
 ):
     """Run the TiPToP H5 pipeline (perception + planning) and return the save directory.
 
-    Raises on failure instead of calling os._exit(), making it suitable for testing.
+    Args:
+        h5_path: Path to H5 observation file.
+        task_instruction: Task instruction (e.g. 'put the cube in the bowl').
+        output_dir: Top-level directory to save outputs; a timestamped subdirectory is created per run.
+        max_planning_time: Maximum time to spend planning with cuTAMP across all skeletons (approximate).
+        opt_steps_per_skeleton: Number of optimization steps per skeleton in cuTAMP.
+        num_particles: Number of particles for cuTAMP; decrease if running out of GPU memory.
+        cutamp_visualize: Whether to visualize cuTAMP optimization.
+        rr_spawn: Whether to spawn a Rerun viewer.
     """
     assert max_planning_time > 0
     assert opt_steps_per_skeleton > 0

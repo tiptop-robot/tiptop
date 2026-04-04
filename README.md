@@ -28,6 +28,14 @@ pixi run docs-build     # Build HTML docs
 pixi run docs-serve     # Serve with live reload
 ```
 
+## Integration Tests
+
+Integration tests run the full TiPToP H5 pipeline (perception + planning) against 5 test scenes. They require a `GOOGLE_API_KEY` environment variable and the M2T2 server running (see the [simulation guide](https://tiptop-robot.readthedocs.io/en/latest/simulation) for setup). Test assets (~17 MB) are automatically downloaded on the first run.
+
+```bash
+pixi run test-integration
+```
+
 ## Contributing
 
 See the [Contributing Guide](https://tiptop-robot.readthedocs.io/en/latest/contributing) for development setup and guidelines.
