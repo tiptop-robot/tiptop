@@ -32,5 +32,8 @@ cutamp/
 # pyzed wheels
 pyzed*.whl
 
+# test assets (downloaded separately)
+tests/assets/
+
 # claude
 .claude

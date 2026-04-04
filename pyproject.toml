@@ -91,6 +91,12 @@ tiptop-h5 = "tiptop.tiptop_h5:entrypoint"
 # tiptop as a service
 tiptop-server = "tiptop.tiptop_websocket_server:entrypoint"
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: requires external perception services (FoundationStereo, SAM2, M2T2, Gemini)",
+]
+addopts = "-m 'not integration'"
+
 [tool.setuptools.packages]
 find = { include = ["tiptop", "tiptop.*"] }
 

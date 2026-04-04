@@ -81,7 +81,7 @@ def load_h5_observation(h5_path: Path) -> Observation:
     return Observation(frame=frame, world_from_cam=world_from_cam, q_init=q_init.astype(np.float32))
 
 
-def _run_h5(
+def run_tiptop_h5(
     h5_path: str,
     task_instruction: str,
     output_dir: str = "tiptop_h5_outputs",
@@ -91,19 +91,9 @@ def _run_h5(
     cutamp_visualize: bool = False,
     rr_spawn: bool = True,
 ):
-    """
-    TiPToP offline runner. Loads an H5 observation file and runs perception + planning,
-    saving a serialized plan JSON file for downstream evaluation.
+    """Run the TiPToP H5 pipeline (perception + planning) and return the save directory.
 
-    Args:
-        h5_path: Path to H5 observation file.
-        task_instruction: Task instruction (e.g. 'put the cube in the bowl').
-        output_dir: Top-level directory to save outputs; a timestamped subdirectory is created per run.
-        max_planning_time: Maximum time to spend planning with cuTAMP across all skeletons (approximate).
-        opt_steps_per_skeleton: Number of optimization steps per skeleton in cuTAMP.
-        num_particles: Number of particles for cuTAMP; decrease if running out of GPU memory.
-        cutamp_visualize: Whether to visualize cuTAMP optimization.
-        rr_spawn: Whether to spawn a Rerun viewer.
+    Raises on failure instead of calling os._exit(), making it suitable for testing.
     """
     assert max_planning_time > 0
     assert opt_steps_per_skeleton > 0
@@ -139,7 +129,6 @@ def _run_h5(
     save_dir.mkdir(parents=True, exist_ok=True)
     file_handler = add_file_handler(save_dir / "tiptop_run.log")
 
-    exit_code = 1
     try:
 
         async def _run_perception():
@@ -198,15 +187,40 @@ def _run_h5(
             _log.warning(f"No plan found: {failure_reason}")
 
         _log.info(f"Saved outputs to {save_dir}")
-    except Exception:
-        _log.exception("TiPToP run failed")
-    else:
-        exit_code = 0
     finally:
         remove_file_handler(file_handler)
         rr.disconnect()
-        # Force exit to avoid segfault during GPU resource cleanup (CUDA/Warp/cuRobo destructors)
-        os._exit(exit_code)
+
+    return save_dir
+
+
+def _run_h5(
+    h5_path: str,
+    task_instruction: str,
+    output_dir: str = "tiptop_h5_outputs",
+    max_planning_time: float = 60.0,
+    opt_steps_per_skeleton: int = 500,
+    num_particles: int = 256,
+    cutamp_visualize: bool = False,
+    rr_spawn: bool = True,
+):
+    """CLI entrypoint wrapper. Calls run_tiptop_h5 and force-exits to avoid GPU cleanup segfaults."""
+    try:
+        run_tiptop_h5(
+            h5_path=h5_path,
+            task_instruction=task_instruction,
+            output_dir=output_dir,
+            max_planning_time=max_planning_time,
+            opt_steps_per_skeleton=opt_steps_per_skeleton,
+            num_particles=num_particles,
+            cutamp_visualize=cutamp_visualize,
+            rr_spawn=rr_spawn,
+        )
+    except Exception:
+        _log.exception("TiPToP run failed")
+        os._exit(1)
+    else:
+        os._exit(0)
 
 
 def entrypoint():
