@@ -10,7 +10,7 @@ TiPToP is a Task and Motion Planning (TAMP) system for robots with a modular arc
 2. **Planning Module** - Uses cuTAMP, a GPU-parallelized TAMP solver that optimizes thousands of candidate pick-and-place plans in parallel
 3. **Execution Module** - Executes trajectories using joint impedance control
 
-More details: http://tiptop-robot.github.io/
+More details: https://tiptop-robot.github.io/
 
 ## Development Commands
 
