@@ -24,7 +24,14 @@ from tiptop.perception.cameras import Frame
 from tiptop.planning import build_tamp_config, run_planning, save_tiptop_plan, serialize_plan
 from tiptop.recording import save_run_metadata, save_run_outputs
 from tiptop.tiptop_run import Observation, run_perception
-from tiptop.utils import add_file_handler, check_cutamp_version, get_robot_rerun, print_tiptop_banner, remove_file_handler, setup_logging
+from tiptop.utils import (
+    add_file_handler,
+    check_cutamp_version,
+    get_robot_rerun,
+    print_tiptop_banner,
+    remove_file_handler,
+    setup_logging,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -91,7 +98,9 @@ def run_tiptop_h5(
     cutamp_visualize: bool = False,
     rr_spawn: bool = True,
 ):
-    """Run the TiPToP H5 pipeline (perception + planning) and return the save directory.
+    """
+    TiPToP offline runner. Loads an H5 observation file and runs perception + planning,
+    saving a serialized plan JSON file for downstream evaluation.
 
     Args:
         h5_path: Path to H5 observation file.
@@ -202,37 +211,15 @@ def run_tiptop_h5(
     return save_dir
 
 
-def _run_h5(
-    h5_path: str,
-    task_instruction: str,
-    output_dir: str = "tiptop_h5_outputs",
-    max_planning_time: float = 60.0,
-    opt_steps_per_skeleton: int = 500,
-    num_particles: int = 256,
-    cutamp_visualize: bool = False,
-    rr_spawn: bool = True,
-):
+def entrypoint():
     """CLI entrypoint wrapper. Calls run_tiptop_h5 and force-exits to avoid GPU cleanup segfaults."""
     try:
-        run_tiptop_h5(
-            h5_path=h5_path,
-            task_instruction=task_instruction,
-            output_dir=output_dir,
-            max_planning_time=max_planning_time,
-            opt_steps_per_skeleton=opt_steps_per_skeleton,
-            num_particles=num_particles,
-            cutamp_visualize=cutamp_visualize,
-            rr_spawn=rr_spawn,
-        )
+        tyro.cli(run_tiptop_h5)
     except Exception:
         _log.exception("TiPToP run failed")
         os._exit(1)
     else:
         os._exit(0)
-
-
-def entrypoint():
-    tyro.cli(_run_h5)
 
 
 if __name__ == "__main__":
