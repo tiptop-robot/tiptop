@@ -27,6 +27,20 @@ This will run the following on every commit (only on files in `tiptop/`):
 4. Ensure pre-commit hooks pass
 5. Open a pull request (see below)
 
+## Integration Tests
+
+Integration tests run the full TiPToP H5 pipeline (perception + planning) against 5 test scenes to verify nothing is broken. They require:
+
+- The `tiptop.yml` config to be setup with the `fr3_robotiq` robot type and M2T2 server URL
+- A `GOOGLE_API_KEY` environment variable (for Gemini)
+- The M2T2 server running (see [simulation setup](simulation.md#setup))
+
+Test assets (~17 MB) are automatically downloaded from Google Drive on the first run and cached locally.
+
+```bash
+pixi run test-integration
+```
+
 ## Making a Pull Request
 
 When opening a PR, please include:
