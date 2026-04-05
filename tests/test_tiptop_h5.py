@@ -9,7 +9,7 @@ SCENES = [
     ("tiptop_scene1_obs.h5", "Put the Rubik's cube in the bowl.", True),
     ("tiptop_scene2_obs.h5", "Put the can in the mug.", True),
     ("tiptop_scene3_obs.h5", "Put the banana in the bin.", True),
-    ("tiptop_scene4_obs.h5", "Put the cube on the sugar box.", True),
+    ("tiptop_scene4_obs.h5", "Put the banana in the bowl.", True),
     ("tiptop_scene5_obs.h5", "Put 3 blocks in the bowl.", True),
 ]
 
@@ -31,6 +31,7 @@ def test_tiptop_h5_pipeline(tmp_path, h5_assets, h5_filename, task_instruction, 
         h5_path=str(h5_path),
         task_instruction=task_instruction,
         output_dir=str(tmp_path),
+        max_planning_time=10.0,
         cutamp_visualize=False,
         rr_spawn=False,
     )
