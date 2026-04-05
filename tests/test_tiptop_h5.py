@@ -4,23 +4,23 @@ import json
 
 import pytest
 
-# (h5 filename, task instruction, expect_planning_success)
+# (h5 filename, task instruction)
 SCENES = [
-    ("tiptop_scene1_obs.h5", "Put the Rubik's cube in the bowl.", True),
-    ("tiptop_scene2_obs.h5", "Put the can in the mug.", True),
-    ("tiptop_scene3_obs.h5", "Put the banana in the bin.", True),
-    ("tiptop_scene4_obs.h5", "Put the banana in the bowl.", True),
-    ("tiptop_scene5_obs.h5", "Put 3 blocks in the bowl.", True),
+    ("tiptop_scene1_obs.h5", "Put the Rubik's cube in the bowl."),
+    ("tiptop_scene2_obs.h5", "Put the can in the mug."),
+    ("tiptop_scene3_obs.h5", "Put the banana in the bin."),
+    ("tiptop_scene4_obs.h5", "Put the banana in the bowl."),
+    ("tiptop_scene5_obs.h5", "Put 3 blocks in the bowl."),
 ]
 
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    "h5_filename, task_instruction, expect_planning_success",
+    "h5_filename, task_instruction",
     SCENES,
     ids=[f"scene{i}" for i in range(1, len(SCENES) + 1)],
 )
-def test_tiptop_h5_pipeline(tmp_path, h5_assets, h5_filename, task_instruction, expect_planning_success):
+def test_tiptop_h5_pipeline(tmp_path, h5_assets, h5_filename, task_instruction):
     h5_path = h5_assets / h5_filename
     assert h5_path.exists(), f"Test asset not found: {h5_path}"
 
@@ -60,11 +60,7 @@ def test_tiptop_h5_pipeline(tmp_path, h5_assets, h5_filename, task_instruction, 
     assert (perception_dir / "cutamp_env.pkl").exists(), "cutamp_env.pkl missing"
     assert (perception_dir / "grasps.pt").exists(), "grasps.pt missing"
 
-    # Planning success — some cluttered scenes may not find a plan within the time budget
+    # Plan should be found for all test scenes
     planning = metadata["planning"]
-    if expect_planning_success:
-        assert planning["success"], f"Planning failed: {planning.get('failure_reason')}"
-        assert (save_dir / "tiptop_plan.json").exists(), "tiptop_plan.json missing despite planning success"
-    else:
-        assert not planning["success"], "Planning unexpectedly succeeded"
-        assert not (save_dir / "tiptop_plan.json").exists(), "tiptop_plan.json unexpectedly created"
+    assert planning["success"], f"Planning failed: {planning.get('failure_reason')}"
+    assert (save_dir / "tiptop_plan.json").exists(), "tiptop_plan.json missing despite planning success"
