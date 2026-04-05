@@ -49,6 +49,10 @@ sam-server = [
     "pydantic",
     "uvicorn",
 ]
+test = [
+    "pytest>=9.0.2,<10",
+    "gdown>=5.2.1,<6",
+]
 dev = [
     "pre-commit",
     "ruff",

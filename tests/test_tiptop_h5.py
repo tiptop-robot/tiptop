@@ -1,19 +1,6 @@
-"""Integration tests for the TiPToP H5 pipeline.
-
-Requires all external perception services (FoundationStereo, SAM2, M2T2, Gemini) to be running
-and API keys to be configured. Run explicitly with:
-
-    pytest tests/test_tiptop_h5.py -m integration -v
-
-Or via pixi:
-
-    pixi run test-integration
-
-Test assets are auto-downloaded from Google Drive on first run.
-"""
+"""Integration tests for the TiPToP H5 pipeline. Run with: pixi run test-integration"""
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -22,7 +9,7 @@ SCENES = [
     ("tiptop_scene1_obs.h5", "Put the Rubik's cube in the bowl.", True),
     ("tiptop_scene2_obs.h5", "Put the can in the mug.", True),
     ("tiptop_scene3_obs.h5", "Put the banana in the bin.", True),
-    ("tiptop_scene4_obs.h5", "Put the cube on the mug and the cans in the bowl.", False),  # cluttered multi-object
+    ("tiptop_scene4_obs.h5", "Put the cube on the sugar box.", True),
     ("tiptop_scene5_obs.h5", "Put 3 blocks in the bowl.", True),
 ]
 
@@ -37,6 +24,7 @@ def test_tiptop_h5_pipeline(tmp_path, h5_assets, h5_filename, task_instruction, 
     h5_path = h5_assets / h5_filename
     assert h5_path.exists(), f"Test asset not found: {h5_path}"
 
+    # Local import to avoid slow transitive imports affecting other tests
     from tiptop.tiptop_h5 import run_tiptop_h5
 
     run_tiptop_h5(
@@ -76,3 +64,6 @@ def test_tiptop_h5_pipeline(tmp_path, h5_assets, h5_filename, task_instruction, 
     if expect_planning_success:
         assert planning["success"], f"Planning failed: {planning.get('failure_reason')}"
         assert (save_dir / "tiptop_plan.json").exists(), "tiptop_plan.json missing despite planning success"
+    else:
+        assert not planning["success"], "Planning unexpectedly succeeded"
+        assert not (save_dir / "tiptop_plan.json").exists(), "tiptop_plan.json unexpectedly created"
