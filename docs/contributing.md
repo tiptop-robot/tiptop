@@ -29,7 +29,7 @@ This will run the following on every commit (only on files in `tiptop/`):
 
 ## Integration Tests
 
-Integration tests run the full TiPToP H5 pipeline (perception + planning) against 5 test scenes to verify nothing is broken. They require:
+Integration tests run the full TiPToP H5 pipeline (perception + planning) against 5 test scenes to check that core code paths are working. They require:
 
 - The `tiptop.yml` config to be setup with the `fr3_robotiq` robot type and M2T2 server URL
 - A `GOOGLE_API_KEY` environment variable (for Gemini)
@@ -40,6 +40,10 @@ Test assets (~17 MB) are automatically downloaded from Google Drive on the first
 ```bash
 pixi run test-integration
 ```
+
+Since the tests exercise the real perception and planning stack, there is some inherent stochasticity. The test scenes are simple enough that they should reliably pass, but an occasional failure doesn't necessarily mean something is broken - re-running usually resolves it. If a test fails consistently, that's worth investigating.
+
+The real validation is running TiPToP on the robot or through the full [simulation pipeline](simulation.md). The integration tests are not a substitute for that.
 
 ## Making a Pull Request
 
