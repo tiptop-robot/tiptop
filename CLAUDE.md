@@ -10,7 +10,7 @@ TiPToP is a Task and Motion Planning (TAMP) system for robots with a modular arc
 2. **Planning Module** - Uses cuTAMP, a GPU-parallelized TAMP solver that optimizes thousands of candidate pick-and-place plans in parallel
 3. **Execution Module** - Executes trajectories using joint impedance control
 
-More details: https://people.csail.mit.edu/willshen/TiPToP/
+More details: http://tiptop-robot.github.io/
 
 ## Development Commands
 
@@ -239,6 +239,12 @@ gdown <link-url>
 - Pre-commit hooks enforce import sorting (`ruff --select I --fix`) and formatting (`ruff-format`)
 - Hooks only apply to `tiptop/` directory
 - `pre-commit` is a pixi dependency and is registered automatically via `pixi run setup-all`
+
+## Working Style
+
+- **Discuss before implementing** — When the approach isn't obvious (e.g., where to put docs, how to structure config), talk through options before writing code
+- **Comments and docstrings must be accurate** — Don't write comments that describe implementation details irrelevant to the reader or are vaguely wrong. If a comment doesn't add real information, drop it
+- **Don't add dead code paths** — If every case goes down the same branch, don't add the other branch "just in case." Keep what's tested, remove what isn't
 
 ## Documentation Style Guide
 
