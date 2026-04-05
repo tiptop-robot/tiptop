@@ -208,8 +208,6 @@ def run_tiptop_h5(
         remove_file_handler(file_handler)
         rr.disconnect()
 
-    return save_dir
-
 
 def entrypoint():
     """CLI entrypoint wrapper. Calls run_tiptop_h5 and force-exits to avoid GPU cleanup segfaults."""
