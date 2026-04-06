@@ -220,11 +220,19 @@ def _get_task_instruction() -> str:
 def create_tamp_environment(
     object_meshes: dict[str, Mesh], table_cuboid: Cuboid, grounded_atoms: list[dict], include_workspace: bool
 ) -> tuple[TAMPEnvironment, list[Cuboid | Mesh]]:
+    def _normalize_surface_label(label: str) -> str:
+        """Map Gemini's table aliases onto the canonical TAMP table object."""
+        if label in {"table_surface", "tabletop", "table_top", "counter", "countertop", "work_surface"}:
+            return table_cuboid.name
+        return label
+
+    _log.info(f"Object mesh labels: {list(object_meshes.keys())}")
+
     # Identify which objects are used as surfaces (second arg in on(x, y))
     surface_labels = set()
     for atom in grounded_atoms:
         if atom["predicate"] == "on" and len(atom["args"]) == 2:
-            surface_labels.add(atom["args"][1])
+            surface_labels.add(_normalize_surface_label(atom["args"][1]))
 
     # Separate movables and surfaces
     movables = []
@@ -242,6 +250,7 @@ def create_tamp_environment(
     for atom in grounded_atoms:
         if atom["predicate"] == "on" and len(atom["args"]) == 2:
             movable_label, surface_label = atom["args"]
+            surface_label = _normalize_surface_label(surface_label)
             goal_state.add(On.ground(movable_label, surface_label))
             _log.info(f"Goal: {movable_label} on {surface_label}")
 
@@ -383,7 +392,7 @@ def process_scene_geometry(
 
         # Log the point cloud
         pcd = object_pcds[label]
-        rr.log(f"obj_pcd/{label_clean}", rr.Points3D(positions=pcd.points, colors=pcd.colors))
+        rr.log(f"world/obj_pcd/{label_clean}", rr.Points3D(positions=pcd.points, colors=pcd.colors))
 
         # Transform grasps to tcp frame
         grasp_dict = filtered_grasps[label]
@@ -413,7 +422,7 @@ def process_scene_geometry(
 
         for grasp_idx, (verts, color) in enumerate(zip(transformed_verts, colors)):
             rr.log(
-                f"grasps/{label}/{grasp_idx:04d}",
+                f"world/grasps/{label}/{grasp_idx:04d}",
                 rr.Mesh3D(
                     vertex_positions=verts, triangle_indices=faces, vertex_colors=np.tile(color, (len(verts), 1))
                 ),
@@ -479,7 +488,7 @@ async def run_perception(
 
     if log_to_rerun:
         rr.log(
-            "pcd",
+            "world/pcd",
             rr.Points3D(
                 positions=depth_results["xyz_map"].reshape(-1, 3), colors=depth_results["rgb_map"].reshape(-1, 3)
             ),

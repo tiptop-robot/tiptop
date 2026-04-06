@@ -103,7 +103,11 @@ async def predict_depth_and_grasps(
 
     # Predict grasps using M2T2
     grasps = await generate_grasps_async(
-        session, cfg.perception.m2t2.url, scene_xyz=xyz_downsampled, scene_rgb=rgb_downsampled
+        session,
+        cfg.perception.m2t2.url,
+        scene_xyz=xyz_downsampled,
+        scene_rgb=rgb_downsampled,
+        apply_bounds=cfg.perception.m2t2.apply_bounds,
     )
 
     return {
