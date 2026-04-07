@@ -40,7 +40,7 @@ from tiptop.perception.cameras import (
 from tiptop.perception.m2t2 import m2t2_to_tiptop_transform
 from tiptop.perception.sam2 import sam2_client
 from tiptop.perception.segmentation import segment_pointcloud_by_masks, segment_table_with_ransac
-from tiptop.perception.utils import convert_trimesh_box_to_curobo_cuboid, convert_trimesh_to_curobo_mesh
+from tiptop.perception.utils import convert_mesh_to_aabb_cuboid, convert_trimesh_box_to_curobo_cuboid, convert_trimesh_to_curobo_mesh
 from tiptop.perception_wrapper import detect_and_segment, predict_depth_and_grasps
 from tiptop.planning import build_tamp_config, run_planning, save_tiptop_plan, serialize_plan
 from tiptop.recording import (
@@ -239,7 +239,9 @@ def create_tamp_environment(
     surfaces = []
     for label, mesh in object_meshes.items():
         if label in surface_labels:
-            surfaces.append(mesh)
+            # Use AABB cuboid for surfaces: convex hull meshes cause false collisions when
+            # other objects rest on or near the surface (they appear inside the hull volume).
+            surfaces.append(convert_mesh_to_aabb_cuboid(mesh))
         else:
             movables.append(mesh)
     _log.info(f"Movables: {[m.name for m in movables]}")

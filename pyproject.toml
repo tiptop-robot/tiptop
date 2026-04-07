@@ -95,6 +95,9 @@ tiptop-h5 = "tiptop.tiptop_h5:entrypoint"
 # tiptop as a service
 tiptop-server = "tiptop.tiptop_websocket_server:entrypoint"
 
+# Diagnostics
+check-fk = "tiptop.scripts.check_fk:entrypoint"
+
 [tool.pytest.ini_options]
 markers = [
     "integration: requires M2T2 server and GOOGLE_API_KEY",
