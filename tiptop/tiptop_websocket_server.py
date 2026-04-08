@@ -56,7 +56,7 @@ class TiptopPlanningServer:
         rerun_mode: str = "stream",
         include_workspace: bool = False,
     ) -> None:
-        if rerun_mode not in {"stream", "save"}:
+        if rerun_mode not in {"stream", "save", "disabled"}:
             raise ValueError(f"Invalid rerun mode: {rerun_mode}")
 
         self._host = host
@@ -236,15 +236,18 @@ class TiptopPlanningServer:
             observation = Observation(frame=frame, world_from_cam=base_from_cam, q_init=q_init)
 
             # Initialize rerun if enabled (idempotent)
-            rr.init("tiptop_server", recording_id=timestamp, spawn=self._rerun_mode == "stream")
-            if self._rerun_mode == "save":
-                rrd_path = save_dir / "tiptop.rrd"
-                rr.save(rrd_path)
-                _log.info(f"Saving Rerun stream to {rrd_path}")
-            rerun_robot = get_robot_rerun()
+            rerun_robot = None
+            if self._rerun_mode != "disabled":
+                rr.init("tiptop_server", recording_id=timestamp, spawn=self._rerun_mode == "stream")
+                if self._rerun_mode == "save":
+                    rrd_path = save_dir / "tiptop.rrd"
+                    rr.save(rrd_path)
+                    _log.info(f"Saving Rerun stream to {rrd_path}")
+                rerun_robot = get_robot_rerun()
 
             _log.info(f"Processing: RGB shape={rgb.shape}, depth shape={depth.shape}, task='{task_instruction}'")
-            rerun_robot.set_joint_positions(q_init)
+            if rerun_robot is not None:
+                rerun_robot.set_joint_positions(q_init)
 
             connector = aiohttp.TCPConnector(limit=10, force_close=True)
             timeout = aiohttp.ClientTimeout(total=120.0)
@@ -261,32 +264,33 @@ class TiptopPlanningServer:
                 )
                 perception_duration = time.monotonic() - perception_start
             # Log camera intrinsics, RGB, and pose to rerun if enabled
-            rr.log("cam", rr.Pinhole(image_from_camera=K))
-            rr.log(
-                "cam",
-                rr.Transform3D(translation=world_from_cam[:3, 3], mat3x3=world_from_cam[:3, :3], axis_length=0.05),
-            )
-            rr.log("rgb", rr.Image(rgb))
-            # TODO: Have better way to denote molmospaces-specific, or make more general
-            # Molmospaces-specific : Log robot transform using fr3_link0 (the arm kinematic root)
-            # so the URDF FK aligns correctly with the sim world frame point cloud.
-            # Pose format is [x, y, z, qw, qx, qy, qz] (MolmoSpaces convention).
-            if "fr3_link0_pose" in obs:
-                robot_pose = obs["fr3_link0_pose"]
-                pos = robot_pose[:3]
-                qw, qx, qy, qz = robot_pose[3:]
+            if rerun_robot is not None:
+                rr.log("cam", rr.Pinhole(image_from_camera=K))
                 rr.log(
-                    rerun_robot.name,
-                    rr.Transform3D(translation=pos, rotation=rr.Quaternion(xyzw=[qx, qy, qz, qw])),
+                    "cam",
+                    rr.Transform3D(translation=world_from_cam[:3, 3], mat3x3=world_from_cam[:3, :3], axis_length=0.05),
                 )
-                # Scene geometry is in robot-base frame; offset the "world" entity so
-                # all world/* children (table, objects, pcd, grasps) render at their
-                # correct world-frame positions alongside the robot.
-                rr.log(
-                    "world",
-                    rr.Transform3D(translation=pos, rotation=rr.Quaternion(xyzw=[qx, qy, qz, qw])),
-                    static=True,
-                )
+                rr.log("rgb", rr.Image(rgb))
+                # TODO: Have better way to denote molmospaces-specific, or make more general
+                # Molmospaces-specific : Log robot transform using fr3_link0 (the arm kinematic root)
+                # so the URDF FK aligns correctly with the sim world frame point cloud.
+                # Pose format is [x, y, z, qw, qx, qy, qz] (MolmoSpaces convention).
+                if "fr3_link0_pose" in obs:
+                    robot_pose = obs["fr3_link0_pose"]
+                    pos = robot_pose[:3]
+                    qw, qx, qy, qz = robot_pose[3:]
+                    rr.log(
+                        rerun_robot.name,
+                        rr.Transform3D(translation=pos, rotation=rr.Quaternion(xyzw=[qx, qy, qz, qw])),
+                    )
+                    # Scene geometry is in robot-base frame; offset the "world" entity so
+                    # all world/* children (table, objects, pcd, grasps) render at their
+                    # correct world-frame positions alongside the robot.
+                    rr.log(
+                        "world",
+                        rr.Transform3D(translation=pos, rotation=rr.Quaternion(xyzw=[qx, qy, qz, qw])),
+                        static=True,
+                    )
             # Uncomment to visualize different cameras (molmospaces)
             # for cam_name, cam_data in obs.get("cameras", {}).items():
             #     cam_rgb = cam_data["rgb"].astype(np.uint8)
@@ -367,7 +371,7 @@ def _run_server(
         port: Port to bind to.
         num_particles: Number of particles for cuTAMP.
         max_planning_time: Max planning time in seconds.
-        rerun_mode: Rerun visualization mode. 'stream' spawns the Rerun viewer; 'save' writes .rrd files to disk.
+        rerun_mode: Rerun visualization mode. 'stream' spawns the Rerun viewer; 'save' writes .rrd files to disk; 'disabled' skips all Rerun logging.
         include_workspace: If True, include real-robot workspace cuboids in the collision world.
         m2t2_apply_bounds: If False, skip M2T2 workspace bounds filtering (e.g. in sim).
     """
@@ -395,7 +399,8 @@ def _run_server(
     except Exception:
         _log.exception("Server failed")
     finally:
-        rr.disconnect()
+        if rerun_mode != "disabled":
+            rr.disconnect()
         # Force exit to avoid segfault during GPU resource cleanup (CUDA/Warp/cuRobo destructors)
         os._exit(exit_code)
 
