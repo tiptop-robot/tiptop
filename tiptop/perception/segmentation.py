@@ -359,6 +359,9 @@ def segment_pointcloud_by_masks(
             continue
 
         z_mask = xyz_obj[..., 2] > max_z
+        if not z_mask.any():
+            _log.warning(f"Skipping {label}: no points above max_z={max_z:.3f}")
+            continue
         xyz_proj, rgb_proj = augment_with_base_projections(xyz_obj[z_mask], rgb_obj[z_mask])
 
         # Create Open3D point cloud
