@@ -25,7 +25,7 @@ def test_tiptop_h5_pipeline(tmp_path, h5_assets, h5_filename, task_instruction):
     assert h5_path.exists(), f"Test asset not found: {h5_path}"
 
     # Local import to avoid slow transitive imports affecting other tests
-    from tiptop.tiptop_h5 import run_tiptop_h5
+    from tiptop.tiptop_offline import run_tiptop_h5
 
     run_tiptop_h5(
         h5_path=str(h5_path),
