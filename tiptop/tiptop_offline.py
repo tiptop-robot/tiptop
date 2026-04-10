@@ -400,6 +400,3 @@ def rerun_entrypoint():
     else:
         os._exit(0)
 
-
-if __name__ == "__main__":
-    h5_entrypoint()
