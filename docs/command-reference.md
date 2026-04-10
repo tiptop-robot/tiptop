@@ -118,6 +118,46 @@ tiptop-h5 \
 
 ---
 
+### tiptop-rerun
+
+Re-runs the TiPToP perception and planning pipeline from a saved run directory. Loads the observation (RGB, depth, intrinsics, camera pose, joint positions, and gripper mask) from a previous run and feeds it back through the full pipeline. Task instruction and planning parameters default to the original run's values but can be overridden.
+
+**Prerequisites:**
+- M2T2 server must be running
+- `GOOGLE_API_KEY` environment variable must be set
+- A saved TiPToP run directory (from `tiptop-run`, `tiptop-h5`, or `tiptop-rerun`)
+
+**Available flags:**
+
+- `--run-dir STR` - Path to a saved TiPToP run directory (required)
+- `--task-instruction STR` - Task instruction override; defaults to the original run's instruction
+- `--output-dir STR` - Top-level directory to save results; a timestamped subdirectory will be created (default: "tiptop_rerun_outputs")
+- `--max-planning-time FLOAT` - Override max planning time; defaults to the original run's value
+- `--opt-steps-per-skeleton INT` - Override optimization steps per skeleton; defaults to the original run's value
+- `--num-particles INT` - Override number of particles; defaults to the original run's value
+- `--cutamp-visualize / --no-cutamp-visualize` - Enable cuTAMP planning visualization in Rerun, significantly slows down planning (default: False)
+- `--rr-spawn / --no-rr-spawn` - Spawn a Rerun viewer; set to False to skip visualization (default: True)
+
+**Example usage:**
+
+```bash
+# Re-run from a previous run with original parameters
+tiptop-rerun --run-dir tiptop_h5_outputs/2026-04-05_13-30-20/
+
+# Re-run with a different task instruction
+tiptop-rerun \
+  --run-dir tiptop_h5_outputs/2026-04-05_13-30-20/ \
+  --task-instruction "put the cube on the table"
+
+# Re-run with more particles and longer planning time
+tiptop-rerun \
+  --run-dir tiptop_outputs/eval/2026-01-24_15-30-00/ \
+  --num-particles 512 \
+  --max-planning-time 120.0
+```
+
+---
+
 ### tiptop-server
 
 Runs the TiPToP perception and planning pipeline as a WebSocket server. Clients send RGB-D observations and receive serialized trajectory plans, allowing consumers on separate machines or running different Python versions to query TiPToP. A `/health` HTTP endpoint is available for liveness checks.
@@ -407,7 +447,7 @@ Replays and visualizes the outputs of a saved TiPToP run in Rerun. Loads percept
 
 **Available flags:**
 
-- `--save-dir STR` - Path to the saved run directory (required)
+- `--run-dir STR` - Path to a saved TiPToP run directory (required)
 - `--visualize-grasps / --no-visualize-grasps` - Visualize M2T2 grasp candidates (default: True)
 - `--visualize-plan / --no-visualize-plan` - Animate the TiPToP plan trajectory with object poses (default: True)
 - `--num-grasps-per-object INT` - Maximum number of grasp candidates to display per object (default: 30)
@@ -417,13 +457,13 @@ Replays and visualizes the outputs of a saved TiPToP run in Rerun. Loads percept
 
 ```bash
 # Visualize a run directory
-viz-tiptop-run --save-dir tiptop_outputs/eval/2026-01-24_15-30-00/
+viz-tiptop-run --run-dir tiptop_outputs/eval/2026-01-24_15-30-00/
 
 # Visualize perception only, skip plan animation
-viz-tiptop-run --save-dir tiptop_outputs/eval/2026-01-24_15-30-00/ --no-visualize-plan
+viz-tiptop-run --run-dir tiptop_outputs/eval/2026-01-24_15-30-00/ --no-visualize-plan
 
 # Show fewer grasps
-viz-tiptop-run --save-dir tiptop_outputs/eval/2026-01-24_15-30-00/ --num-grasps-per-object 10
+viz-tiptop-run --run-dir tiptop_outputs/eval/2026-01-24_15-30-00/ --num-grasps-per-object 10
 ```
 
 A Rerun window will open automatically. Use the `tiptop_execution` timeline to step through the planned trajectory. The `cam` entity shows the camera pose and image at capture time, and `world/` contains all objects and their poses throughout execution.
