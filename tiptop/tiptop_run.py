@@ -20,7 +20,7 @@ from curobo.wrap.reacher.ik_solver import IKSolver
 from curobo.wrap.reacher.motion_gen import MotionGen
 from cutamp.config import TAMPConfiguration
 from cutamp.envs import TAMPEnvironment
-from cutamp.tamp_domain import HandEmpty, On
+from cutamp.tamp_domain import HandEmpty, Holding, On
 from cutamp.utils.rerun_utils import log_curobo_mesh_to_rerun
 from jaxtyping import Bool, Float
 from scipy.spatial import KDTree
@@ -220,28 +220,17 @@ def _get_task_instruction() -> str:
 def create_tamp_environment(
     object_meshes: dict[str, Mesh], table_cuboid: Cuboid, grounded_atoms: list[dict], include_workspace: bool
 ) -> tuple[TAMPEnvironment, list[Cuboid | Mesh]]:
-    def _normalize_surface_label(label: str) -> str:
-        """Map Gemini's table aliases onto the canonical TAMP table object."""
-        if label in {"table_surface", "tabletop", "table_top", "counter", "countertop", "work_surface"}:
-            return table_cuboid.name
-        return label
-
-    _log.info(f"Object mesh labels: {list(object_meshes.keys())}")
-
     # Identify which objects are used as surfaces (second arg in on(x, y))
     surface_labels = set()
     for atom in grounded_atoms:
         if atom["predicate"] == "on" and len(atom["args"]) == 2:
-            surface_labels.add(_normalize_surface_label(atom["args"][1]))
+            surface_labels.add(atom["args"][1])
 
     # Separate movables and surfaces
     movables = []
     surfaces = []
     for label, mesh in object_meshes.items():
         if label in surface_labels:
-            # Use AABB cuboid for surfaces: convex hull meshes cause false collisions when
-            # other objects rest on or near the surface (they appear inside the hull volume).
-            # surfaces.append(convert_mesh_to_aabb_cuboid(mesh))
             surfaces.append(mesh)
         else:
             movables.append(mesh)
@@ -249,13 +238,19 @@ def create_tamp_environment(
     _log.info(f"Surfaces: {[s.name for s in surfaces]}")
 
     # Create goal state from grounded atoms
-    goal_state = {HandEmpty.ground()}
+    goal_state: set = set()
+    has_holding = any(atom["predicate"] == "holding" for atom in grounded_atoms)
+    if not has_holding:
+        goal_state.add(HandEmpty.ground())
     for atom in grounded_atoms:
         if atom["predicate"] == "on" and len(atom["args"]) == 2:
             movable_label, surface_label = atom["args"]
-            surface_label = _normalize_surface_label(surface_label)
             goal_state.add(On.ground(movable_label, surface_label))
             _log.info(f"Goal: {movable_label} on {surface_label}")
+        elif atom["predicate"] == "holding" and len(atom["args"]) == 1:
+            movable_label = atom["args"][0]
+            goal_state.add(Holding.ground(movable_label))
+            _log.info(f"Goal: holding {movable_label}")
 
     # All surfaces include table and detected surface objects
     all_surfaces = [table_cuboid, *surfaces]
