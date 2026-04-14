@@ -340,7 +340,9 @@ def segment_pointcloud_by_masks(
     for mask_2d, bbox in zip(masks_2d, bboxes):
         label = bbox["label"]
 
-        # Erode the mask to handle depth edge noise
+        # Erode the mask to handle depth edge noise. If erosion leaves too few
+        # points (e.g. thin objects like knives), fall back to the un-eroded mask.
+        original_mask = mask_2d
         if erode_pixels > 0:
             kernel = np.ones((erode_pixels * 2 + 1, erode_pixels * 2 + 1), np.uint8)
             mask_2d = cv2.erode(mask_2d.astype(np.uint8), kernel, iterations=1).astype(bool)
@@ -353,6 +355,16 @@ def segment_pointcloud_by_masks(
         valid = ~np.isnan(xyz_obj).any(axis=1)
         xyz_obj = xyz_obj[valid]
         rgb_obj = rgb_obj[valid]
+
+        if len(xyz_obj) < 10 and erode_pixels > 0:
+            _log.warning(
+                f"{label}: too few points ({len(xyz_obj)}) after erosion; retrying with erode_pixels=0"
+            )
+            xyz_obj = xyz_world[original_mask]
+            rgb_obj = rgb[original_mask]
+            valid = ~np.isnan(xyz_obj).any(axis=1)
+            xyz_obj = xyz_obj[valid]
+            rgb_obj = rgb_obj[valid]
 
         if len(xyz_obj) < 10:
             _log.warning(f"Skipping {label}: too few points ({len(xyz_obj)})")

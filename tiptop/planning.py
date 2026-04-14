@@ -59,7 +59,7 @@ def build_tamp_config(
         max_loop_dur=max_planning_time,
         num_opt_steps=opt_steps,
         m2t2_grasps=True,
-        prop_satisfying_break=0.1,
+        prop_satisfying_break=0.2,
         robot=robot_type,
         curobo_plan=True,
         max_motion_refine_attempts=32,
