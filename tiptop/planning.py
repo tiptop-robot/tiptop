@@ -58,6 +58,7 @@ def build_tamp_config(
         prop_satisfying_break=0.1,
         robot=robot_type,
         curobo_plan=True,
+        max_motion_refine_attempts=32,
         warmup_ik=False,
         warmup_motion_gen=False,
         num_initial_plans=10,
