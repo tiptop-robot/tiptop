@@ -10,7 +10,7 @@ def categorize_failure(reason: str) -> str:
     """Bucket a raw failure_reason string into a high-level category."""
     if not reason:
         return "unknown"
-    if reason.startswith("Motion planning failed for all"):
+    if reason.startswith("Motion planning failed"):
         return "motion_planning_failed"
     if reason.startswith("No satisfying particles found after optimizing") and "time budget" in reason:
         return "timeout_no_satisfying_particles"
