@@ -119,6 +119,7 @@ def get_motion_gen(
             collision_activation_distance=collision_activation_distance,
             position_threshold=0.01,
             rotation_threshold=0.1,
+            collision_cache={"obb": 50, "mesh": 50},
         )
         motion_gen = MotionGen(motion_gen_cfg)
 

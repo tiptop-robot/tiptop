@@ -20,7 +20,7 @@ from curobo.wrap.reacher.ik_solver import IKSolver
 from curobo.wrap.reacher.motion_gen import MotionGen
 from cutamp.config import TAMPConfiguration
 from cutamp.envs import TAMPEnvironment
-from cutamp.tamp_domain import HandEmpty, On
+from cutamp.tamp_domain import HandEmpty, Holding, On
 from cutamp.utils.rerun_utils import log_curobo_mesh_to_rerun
 from jaxtyping import Bool, Float
 from scipy.spatial import KDTree
@@ -40,7 +40,7 @@ from tiptop.perception.cameras import (
 from tiptop.perception.m2t2 import m2t2_to_tiptop_transform
 from tiptop.perception.sam2 import sam2_client
 from tiptop.perception.segmentation import segment_pointcloud_by_masks, segment_table_with_ransac
-from tiptop.perception.utils import convert_trimesh_box_to_curobo_cuboid, convert_trimesh_to_curobo_mesh
+from tiptop.perception.utils import convert_mesh_to_aabb_cuboid, convert_trimesh_box_to_curobo_cuboid, convert_trimesh_to_curobo_mesh
 from tiptop.perception_wrapper import detect_and_segment, predict_depth_and_grasps
 from tiptop.planning import build_tamp_config, run_planning, save_tiptop_plan, serialize_plan
 from tiptop.recording import (
@@ -238,12 +238,19 @@ def create_tamp_environment(
     _log.info(f"Surfaces: {[s.name for s in surfaces]}")
 
     # Create goal state from grounded atoms
-    goal_state = {HandEmpty.ground()}
+    goal_state: set = set()
+    has_holding = any(atom["predicate"] == "holding" for atom in grounded_atoms)
+    if not has_holding:
+        goal_state.add(HandEmpty.ground())
     for atom in grounded_atoms:
         if atom["predicate"] == "on" and len(atom["args"]) == 2:
             movable_label, surface_label = atom["args"]
             goal_state.add(On.ground(movable_label, surface_label))
             _log.info(f"Goal: {movable_label} on {surface_label}")
+        elif atom["predicate"] == "holding" and len(atom["args"]) == 1:
+            movable_label = atom["args"][0]
+            goal_state.add(Holding.ground(movable_label))
+            _log.info(f"Goal: holding {movable_label}")
 
     # All surfaces include table and detected surface objects
     all_surfaces = [table_cuboid, *surfaces]
@@ -383,7 +390,7 @@ def process_scene_geometry(
 
         # Log the point cloud
         pcd = object_pcds[label]
-        rr.log(f"obj_pcd/{label_clean}", rr.Points3D(positions=pcd.points, colors=pcd.colors))
+        rr.log(f"world/obj_pcd/{label_clean}", rr.Points3D(positions=pcd.points, colors=pcd.colors))
 
         # Transform grasps to tcp frame
         grasp_dict = filtered_grasps[label]
@@ -413,7 +420,7 @@ def process_scene_geometry(
 
         for grasp_idx, (verts, color) in enumerate(zip(transformed_verts, colors)):
             rr.log(
-                f"grasps/{label}/{grasp_idx:04d}",
+                f"world/grasps/{label}/{grasp_idx:04d}",
                 rr.Mesh3D(
                     vertex_positions=verts, triangle_indices=faces, vertex_colors=np.tile(color, (len(verts), 1))
                 ),
@@ -479,7 +486,7 @@ async def run_perception(
 
     if log_to_rerun:
         rr.log(
-            "pcd",
+            "world/pcd",
             rr.Points3D(
                 positions=depth_results["xyz_map"].reshape(-1, 3), colors=depth_results["rgb_map"].reshape(-1, 3)
             ),

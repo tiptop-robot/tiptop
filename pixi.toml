@@ -72,6 +72,8 @@ install-pre-commit = "pre-commit install"
 setup-planners = { depends-on = ["install-curobo", "install-cutamp"] }
 setup-all = { depends-on = ["install-zed", "install-curobo", "install-cutamp"] }
 
+tiptop-server = { cmd = "tiptop-server", env = { CUDA_HOME = "$CONDA_PREFIX/targets/x86_64-linux", CPATH = "$CONDA_PREFIX/targets/x86_64-linux/include:$CPATH", PATH = "$CONDA_PREFIX/nvvm/bin:$PATH", LD_LIBRARY_PATH = "$CONDA_PREFIX/lib:$LD_LIBRARY_PATH" } }
+
 # Testing tasks
 test-integration = "pytest tests/ -m integration -v"
 

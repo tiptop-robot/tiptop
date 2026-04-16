@@ -341,27 +341,30 @@ def run_tiptop_rerun(
         cutamp_visualize: Whether to visualize cuTAMP optimization.
         rr_spawn: Whether to spawn a Rerun viewer.
     """
-    setup_logging(level=logging.INFO)
+    setup_logging(level=logging.DEBUG)
     print_tiptop_banner()
     run_dir_path = Path(run_dir)
     observation, gripper_mask, metadata = load_observation_from_run(run_dir_path)
 
-    cutamp_config_path = run_dir_path / "cutamp" / "config.yml"
-    if not cutamp_config_path.exists():
-        raise FileNotFoundError(f"Could not find cuTAMP config at {cutamp_config_path}")
-    cutamp_config = OmegaConf.to_container(OmegaConf.load(cutamp_config_path))
+    # cutamp_config_path = run_dir_path / "cutamp" / "config.yml"
+    # if not cutamp_config_path.exists():
+    #     raise FileNotFoundError(f"Could not find cuTAMP config at {cutamp_config_path}")
+    # cutamp_config = OmegaConf.to_container(OmegaConf.load(cutamp_config_path))
 
     if task_instruction is None:
         task_instruction = metadata["task_instruction"]
         _log.info(f"Using task instruction from original run: '{task_instruction}'")
     if max_planning_time is None:
-        max_planning_time = cutamp_config["max_loop_dur"]
+        # max_planning_time = cutamp_config["max_loop_dur"]
+        max_planning_time = 15.0
         _log.info(f"Using max_planning_time from original run: {max_planning_time}")
     if opt_steps_per_skeleton is None:
-        opt_steps_per_skeleton = cutamp_config["num_opt_steps"]
+        # opt_steps_per_skeleton = cutamp_config["num_opt_steps"]
+        opt_steps_per_skeleton = 500
         _log.info(f"Using opt_steps_per_skeleton from original run: {opt_steps_per_skeleton}")
     if num_particles is None:
-        num_particles = cutamp_config["num_particles"]
+        # num_particles = cutamp_config["num_particles"]
+        num_particles = 256
         _log.info(f"Using num_particles from original run: {num_particles}")
 
     run_tiptop(

@@ -7429,8 +7429,8 @@ packages:
   timestamp: 1746986641678
 - pypi: ./
   name: tiptop
-  version: 0.1.0.post1.dev5+g30a133593.d20260405
-  sha256: fcd325c182acd759b622b62cc8a874368b0b27a372b0cc81822717007cb6b061
+  version: 0.0.post1.dev23+g41043364e.d20260410
+  sha256: b58e96432dfd0f165c405eacb989e098482757995f01ac12aab827db16620d89
   requires_dist:
   - aiohttp
   - bamboo-franka-client>=0.1.1

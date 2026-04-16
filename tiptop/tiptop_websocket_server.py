@@ -22,6 +22,7 @@ import aiohttp
 import msgpack_numpy
 import numpy as np
 import rerun as rr
+from scipy.spatial.transform import Rotation
 import tyro
 import websockets.asyncio.server as ws_server
 import websockets.frames
@@ -55,7 +56,7 @@ class TiptopPlanningServer:
         rerun_mode: str = "stream",
         include_workspace: bool = False,
     ) -> None:
-        if rerun_mode not in {"stream", "save"}:
+        if rerun_mode not in {"stream", "save", "disabled"}:
             raise ValueError(f"Invalid rerun mode: {rerun_mode}")
 
         self._host = host
@@ -82,6 +83,7 @@ class TiptopPlanningServer:
             time_dilation_factor=self._cfg.robot.time_dilation_factor,
         )
         self._output_dir = Path("tiptop_server_outputs")
+        self._pipeline_lock = asyncio.Lock()
 
     def _reset_motion_planning(self) -> None:
         """Reset collision world to initial state to clear stale cached state between runs."""
@@ -136,12 +138,14 @@ class TiptopPlanningServer:
                 # Receive observation from client
                 raw_data = await websocket.recv()
                 obs = msgpack_numpy.unpackb(raw_data)
+                # obs["task"] = "pick up the cup and put it on the table"  # TODO: remove hardcode
 
                 _log.info(f"Received planning request: task='{obs.get('task', 'unknown')}'")
 
-                # Run the full pipeline
+                # Run the full pipeline (one at a time to protect shared GPU state)
                 infer_start = time.monotonic()
-                result = await self._run_pipeline(obs)
+                async with self._pipeline_lock:
+                    result = await self._run_pipeline(obs)
                 infer_time = time.monotonic() - infer_start
 
                 # Add timing info
@@ -209,6 +213,19 @@ class TiptopPlanningServer:
             depth = obs["depth"].copy().astype(np.float32)
             K = obs["intrinsics"].astype(np.float32)
             world_from_cam = obs["world_from_cam"].astype(np.float32)
+
+            # If the robot base is not at the world origin (e.g. MolmoSpaces sim),
+            # transform into the robot base frame for cuRobo planning.
+            # Pose format is [x, y, z, qw, qx, qy, qz] (MolmoSpaces convention).
+            if "fr3_link0_pose" in obs:
+                robot_pose = obs["fr3_link0_pose"]
+                world_from_base = np.eye(4, dtype=np.float32)
+                world_from_base[:3, :3] = Rotation.from_quat(robot_pose[[4, 5, 6, 3]]).as_matrix()
+                world_from_base[:3, 3] = robot_pose[:3]
+                base_from_cam = np.linalg.inv(world_from_base) @ world_from_cam
+            else:
+                base_from_cam = world_from_cam
+
             task_instruction = obs["task"]
             q_init = obs["q_init"]
 
@@ -218,18 +235,21 @@ class TiptopPlanningServer:
             depth[depth > self._cfg.perception.depth_trunc_m] = 0.0
 
             frame = Frame(serial="static", timestamp=0.0, rgb=rgb, intrinsics=K, depth=depth)
-            observation = Observation(frame=frame, world_from_cam=world_from_cam, q_init=q_init)
+            observation = Observation(frame=frame, world_from_cam=base_from_cam, q_init=q_init)
 
             # Initialize rerun if enabled (idempotent)
-            rr.init("tiptop_server", recording_id=timestamp, spawn=self._rerun_mode == "stream")
-            if self._rerun_mode == "save":
-                rrd_path = save_dir / "tiptop.rrd"
-                rr.save(rrd_path)
-                _log.info(f"Saving Rerun stream to {rrd_path}")
-            rerun_robot = get_robot_rerun()
+            rerun_robot = None
+            if self._rerun_mode != "disabled":
+                rr.init("tiptop_server", recording_id=timestamp, spawn=self._rerun_mode == "stream")
+                if self._rerun_mode == "save":
+                    rrd_path = save_dir / "tiptop.rrd"
+                    rr.save(rrd_path)
+                    _log.info(f"Saving Rerun stream to {rrd_path}")
+                rerun_robot = get_robot_rerun()
 
             _log.info(f"Processing: RGB shape={rgb.shape}, depth shape={depth.shape}, task='{task_instruction}'")
-            rerun_robot.set_joint_positions(q_init)
+            if rerun_robot is not None:
+                rerun_robot.set_joint_positions(q_init)
 
             connector = aiohttp.TCPConnector(limit=10, force_close=True)
             timeout = aiohttp.ClientTimeout(total=120.0)
@@ -245,12 +265,38 @@ class TiptopPlanningServer:
                     include_workspace=self._include_workspace,
                 )
                 perception_duration = time.monotonic() - perception_start
-            # Log camera intrinsics and pose to rerun if enabled
-            rr.log("cam", rr.Pinhole(image_from_camera=K))
-            rr.log(
-                "cam",
-                rr.Transform3D(translation=world_from_cam[:3, 3], mat3x3=world_from_cam[:3, :3], axis_length=0.05),
-            )
+            # Log camera intrinsics, RGB, and pose to rerun if enabled
+            if rerun_robot is not None:
+                rr.log("cam", rr.Pinhole(image_from_camera=K))
+                rr.log(
+                    "cam",
+                    rr.Transform3D(translation=world_from_cam[:3, 3], mat3x3=world_from_cam[:3, :3], axis_length=0.05),
+                )
+                rr.log("rgb", rr.Image(rgb))
+                # TODO: Have better way to denote molmospaces-specific, or make more general
+                # Molmospaces-specific : Log robot transform using fr3_link0 (the arm kinematic root)
+                # so the URDF FK aligns correctly with the sim world frame point cloud.
+                # Pose format is [x, y, z, qw, qx, qy, qz] (MolmoSpaces convention).
+                if "fr3_link0_pose" in obs:
+                    robot_pose = obs["fr3_link0_pose"]
+                    pos = robot_pose[:3]
+                    qw, qx, qy, qz = robot_pose[3:]
+                    rr.log(
+                        rerun_robot.name,
+                        rr.Transform3D(translation=pos, rotation=rr.Quaternion(xyzw=[qx, qy, qz, qw])),
+                    )
+                    # Scene geometry is in robot-base frame; offset the "world" entity so
+                    # all world/* children (table, objects, pcd, grasps) render at their
+                    # correct world-frame positions alongside the robot.
+                    rr.log(
+                        "world",
+                        rr.Transform3D(translation=pos, rotation=rr.Quaternion(xyzw=[qx, qy, qz, qw])),
+                        static=True,
+                    )
+            # Uncomment to visualize different cameras (molmospaces)
+            # for cam_name, cam_data in obs.get("cameras", {}).items():
+            #     cam_rgb = cam_data["rgb"].astype(np.uint8)
+            #     rr.log(f"cameras/{cam_name}/rgb", rr.Image(cam_rgb))
 
             # Run cuTAMP planning
             _log.info("Running cuTAMP planning...")
@@ -318,6 +364,7 @@ def _run_server(
     max_planning_time: float = 60.0,
     rerun_mode: str = "stream",
     include_workspace: bool = False,
+    m2t2_apply_bounds: bool = True,
 ) -> None:
     """Tiptop websocket planning server.
 
@@ -326,12 +373,15 @@ def _run_server(
         port: Port to bind to.
         num_particles: Number of particles for cuTAMP.
         max_planning_time: Max planning time in seconds.
-        rerun_mode: Rerun visualization mode. 'stream' spawns the Rerun viewer; 'save' writes .rrd files to disk.
+        rerun_mode: Rerun visualization mode. 'stream' spawns the Rerun viewer; 'save' writes .rrd files to disk; 'disabled' skips all Rerun logging.
         include_workspace: If True, include real-robot workspace cuboids in the collision world.
+        m2t2_apply_bounds: If False, skip M2T2 workspace bounds filtering (e.g. in sim).
     """
     print_tiptop_banner()
     check_cutamp_version()
-    setup_logging()
+    setup_logging(level=logging.DEBUG)
+    cfg = tiptop_cfg(force_reload=True)
+    cfg.perception.m2t2.apply_bounds = m2t2_apply_bounds
     logging.getLogger("websockets.server").setLevel(logging.INFO)
 
     server = TiptopPlanningServer(
@@ -351,7 +401,8 @@ def _run_server(
     except Exception:
         _log.exception("Server failed")
     finally:
-        rr.disconnect()
+        if rerun_mode != "disabled":
+            rr.disconnect()
         # Force exit to avoid segfault during GPU resource cleanup (CUDA/Warp/cuRobo destructors)
         os._exit(exit_code)
 

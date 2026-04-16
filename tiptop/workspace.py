@@ -39,7 +39,14 @@ def fr3_workspace() -> tuple[Cuboid, ...]:
         pose=[0.0, 0.525, 0.76 / 2, *unit_quat],
         color=[0, 87, 217],
     )
-    obstacles = (vention_table, camera, nishanth, ipad)
+    cube_at_nowhere = Cuboid(
+        name="cube_at_nowhere",
+        dims=[0.01, 0.01, 0.01],
+        pose=[-10, -10, -10, *unit_quat],
+        color=[0, 0, 255],
+    )
+    # obstacles = (vention_table, camera, nishanth, ipad)
+    obstacles = (cube_at_nowhere,)
     return obstacles
 
 

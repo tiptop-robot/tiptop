@@ -71,6 +71,27 @@ def convert_trimesh_box_to_curobo_cuboid(trimesh_box: trimesh.primitives.Box, na
     return cuboid
 
 
+def convert_mesh_to_aabb_cuboid(mesh: Mesh) -> Cuboid:
+    """Convert a cuRobo Mesh to an AABB Cuboid.
+
+    Surface objects (e.g. cabinets, counters) should be represented as cuboids rather than
+    convex hull meshes so that objects resting on them are not falsely detected as colliding
+    with the interior of the hull.
+    """
+    vertices = np.array(mesh.vertices)
+    pos = np.array(mesh.pose[:3])
+    world_vertices = vertices + pos
+    aabb_min = world_vertices.min(axis=0)
+    aabb_max = world_vertices.max(axis=0)
+    center = (aabb_min + aabb_max) / 2
+    dims = aabb_max - aabb_min
+    return Cuboid(
+        name=mesh.name,
+        dims=[float(dims[0]), float(dims[1]), float(dims[2])],
+        pose=[float(center[0]), float(center[1]), float(center[2]), 1.0, 0.0, 0.0, 0.0],
+    )
+
+
 def convert_trimesh_to_curobo_mesh(trimesh_obj: trimesh.Trimesh, label: str) -> Mesh:
     """Convert trimesh object to cuRobo Mesh."""
     vertices = np.asarray(trimesh_obj.vertices)

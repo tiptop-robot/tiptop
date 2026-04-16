@@ -49,15 +49,20 @@ def build_tamp_config(
     collision_activation_distance: float = 0.0,
     enable_visualizer: bool = False,
 ) -> TAMPConfiguration:
-    """Build a TAMPConfiguration with TiPToP defaults."""
+    """Build a TAMPConfiguration with TiPToP defaults.
+
+    See https://github.com/tiptop-robot/cuTAMP/blob/main/cutamp/config.py for
+    documentation of each TAMPConfiguration parameter.
+    """
     return TAMPConfiguration(
         num_particles=num_particles,
         max_loop_dur=max_planning_time,
         num_opt_steps=opt_steps,
         m2t2_grasps=True,
-        prop_satisfying_break=0.1,
+        prop_satisfying_break=0.2,
         robot=robot_type,
         curobo_plan=True,
+        max_motion_refine_attempts=32,
         warmup_ik=False,
         warmup_motion_gen=False,
         num_initial_plans=10,
