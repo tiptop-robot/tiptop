@@ -26,6 +26,20 @@ def tiptop_cfg(force_reload: bool = False) -> DictConfig:
     return _cached_cfg
 
 
+def set_tiptop_cfg_from_file(cfg_path: Path) -> DictConfig:
+    """Override the cached TiPToP config with one loaded from a specific file.
+
+    Used by reruns to restore the config that was active during the original run,
+    so robot/camera/perception settings stay consistent with the saved data.
+    CLI overrides from sys.argv are re-applied on top.
+    """
+    global _cached_cfg
+    _cached_cfg = OmegaConf.load(cfg_path)
+    cli = OmegaConf.from_cli()
+    _cached_cfg = OmegaConf.merge(_cached_cfg, cli)
+    return _cached_cfg
+
+
 def load_calibration_info():
     if not os.path.exists(calib_info_path):
         raise FileNotFoundError(f"{calib_info_path} not found.")

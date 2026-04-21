@@ -22,7 +22,7 @@ import tyro
 from omegaconf import OmegaConf
 from scipy.spatial.transform import Rotation
 
-from tiptop.config import tiptop_cfg
+from tiptop.config import set_tiptop_cfg_from_file, tiptop_cfg
 from tiptop.motion_planning import build_curobo_solvers
 from tiptop.perception.cameras import Frame
 from tiptop.planning import build_tamp_config, run_planning, save_tiptop_plan, serialize_plan
@@ -64,9 +64,12 @@ def run_tiptop(
         cutamp_visualize: Whether to visualize cuTAMP optimization.
         rr_spawn: Whether to spawn a Rerun viewer.
     """
-    assert max_planning_time > 0
-    assert opt_steps_per_skeleton > 0
-    assert num_particles > 0
+    if max_planning_time <= 0:
+        raise ValueError(f"max_planning_time must be > 0, got {max_planning_time}")
+    if opt_steps_per_skeleton <= 0:
+        raise ValueError(f"opt_steps_per_skeleton must be > 0, got {opt_steps_per_skeleton}")
+    if num_particles <= 0:
+        raise ValueError(f"num_particles must be > 0, got {num_particles}")
 
     if not task_instruction:
         raise ValueError("task_instruction is required")
@@ -159,7 +162,7 @@ def run_tiptop(
 
 
 def load_h5_observation(h5_path: Path) -> Observation:
-    """Load an observation from an H5 file (pi-sim-evals format).
+    """Load an observation from an H5 file (droid-sim-evals format).
 
     Expected fields: rgb, depth, intrinsic_matrix, pos_w, quat_w_ros (w,x,y,z), q_init.
     """
@@ -345,6 +348,19 @@ def run_tiptop_rerun(
     print_tiptop_banner()
     run_dir_path = Path(run_dir)
     observation, gripper_mask, metadata = load_observation_from_run(run_dir_path)
+
+    # Restore the config that was active during the original run so downstream
+    # tiptop_cfg() consumers (robot type, time dilation, perception thresholds, etc.)
+    # see the same values — otherwise reruns drift with the local tiptop.yml.
+    saved_cfg_path = run_dir_path / "tiptop.yml"
+    if saved_cfg_path.exists():
+        set_tiptop_cfg_from_file(saved_cfg_path)
+        _log.info(f"Loaded tiptop config from original run: {saved_cfg_path}")
+    else:
+        _log.warning(
+            f"No tiptop.yml found in {run_dir_path} — falling back to the current config. "
+            "Rerun may differ from the original run."
+        )
 
     cutamp_config_path = run_dir_path / "cutamp" / "config.yml"
     if not cutamp_config_path.exists():
