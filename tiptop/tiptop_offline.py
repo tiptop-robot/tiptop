@@ -349,9 +349,7 @@ def run_tiptop_rerun(
     run_dir_path = Path(run_dir)
     observation, gripper_mask, metadata = load_observation_from_run(run_dir_path)
 
-    # Restore the config that was active during the original run so downstream
-    # tiptop_cfg() consumers (robot type, time dilation, perception thresholds, etc.)
-    # see the same values — otherwise reruns drift with the local tiptop.yml.
+    # Restore config from the original run so tiptop_cfg() consumers don't drift
     saved_cfg_path = run_dir_path / "tiptop.yml"
     if saved_cfg_path.exists():
         set_tiptop_cfg_from_file(saved_cfg_path)
@@ -362,10 +360,7 @@ def run_tiptop_rerun(
             "Rerun may differ from the original run."
         )
 
-    # Planning param defaults come from the original run's cuTAMP config if present.
-    # Older runs (or runs where planning failed before the config was written) may
-    # not have it — fall back to the same defaults as tiptop-h5. Keep these in sync
-    # with run_tiptop_h5's signature above.
+    # Defaults from the original run's cuTAMP config; fall back to tiptop-h5 values if missing
     cutamp_config_path = run_dir_path / "cutamp" / "config.yml"
     if cutamp_config_path.exists():
         cutamp_config = OmegaConf.to_container(OmegaConf.load(cutamp_config_path))

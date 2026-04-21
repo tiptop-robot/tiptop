@@ -27,12 +27,7 @@ def tiptop_cfg(force_reload: bool = False) -> DictConfig:
 
 
 def set_tiptop_cfg_from_file(cfg_path: Path) -> DictConfig:
-    """Override the cached TiPToP config with one loaded from a specific file.
-
-    Used by reruns to restore the config that was active during the original run,
-    so robot/camera/perception settings stay consistent with the saved data.
-    CLI overrides from sys.argv are re-applied on top.
-    """
+    """Override the cached TiPToP config with one loaded from a specific file."""
     global _cached_cfg
     _cached_cfg = OmegaConf.load(cfg_path)
     cli = OmegaConf.from_cli()

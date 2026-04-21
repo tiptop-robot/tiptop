@@ -161,10 +161,7 @@ def setup_logging(level: int = logging.INFO):
         if isinstance(handler, logging.StreamHandler) and handler.stream in (sys.stdout, sys.stderr):
             root_logger.removeHandler(handler)
 
-    # Add our custom handler. Pin its level explicitly so the console output
-    # stays at `level` even if a later add_file_handler() bumps the root logger
-    # lower (e.g. to let DEBUG records reach a log file while the terminal
-    # stays at INFO).
+    # Pin explicitly so a later add_file_handler() bumping root doesn't change console
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
     handler.setLevel(level)
@@ -214,9 +211,7 @@ def add_file_handler(log_file: Path, level: int = logging.DEBUG) -> logging.File
     formatter = logging.Formatter(log_format, datefmt="%Y-%m-%d %H:%M:%S")
     file_handler.setFormatter(formatter)
 
-    # Add to root logger. If the file handler is more verbose than the root
-    # logger's current level, lower the root so records actually reach it.
-    # Existing handlers (stdout/stderr) keep their own levels from setup_logging.
+    # Lower root if the file handler is more verbose, so records reach it
     root_logger = logging.getLogger()
     if level < root_logger.level:
         root_logger.setLevel(level)
