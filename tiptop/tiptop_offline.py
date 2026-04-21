@@ -235,8 +235,6 @@ def run_tiptop_h5(
         cutamp_visualize: Whether to visualize cuTAMP optimization.
         rr_spawn: Whether to spawn a Rerun viewer.
     """
-    setup_logging(level=logging.INFO)
-    print_tiptop_banner()
     observation = load_h5_observation(Path(h5_path))
     run_tiptop(
         observation=observation,
@@ -252,6 +250,8 @@ def run_tiptop_h5(
 
 def h5_entrypoint():
     """CLI entrypoint for tiptop-h5. Force-exits to avoid GPU cleanup segfaults."""
+    setup_logging(level=logging.INFO, root_level=logging.DEBUG)
+    print_tiptop_banner()
     try:
         tyro.cli(run_tiptop_h5)
     except Exception:
@@ -344,8 +344,6 @@ def run_tiptop_rerun(
         cutamp_visualize: Whether to visualize cuTAMP optimization.
         rr_spawn: Whether to spawn a Rerun viewer.
     """
-    setup_logging(level=logging.INFO)
-    print_tiptop_banner()
     run_dir_path = Path(run_dir)
     observation, gripper_mask, metadata = load_observation_from_run(run_dir_path)
 
@@ -408,6 +406,8 @@ def run_tiptop_rerun(
 
 def rerun_entrypoint():
     """CLI entrypoint for tiptop-rerun. Force-exits to avoid GPU cleanup segfaults."""
+    setup_logging(level=logging.INFO, root_level=logging.DEBUG)
+    print_tiptop_banner()
     try:
         tyro.cli(run_tiptop_rerun)
     except Exception:

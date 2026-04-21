@@ -1,6 +1,5 @@
 import json
 import logging
-import shutil
 import subprocess
 import threading
 import time
@@ -15,10 +14,11 @@ import numpy as np
 import open3d as o3d
 import torch
 from jaxtyping import Bool, Float, UInt8
+from omegaconf import OmegaConf
 from PIL import Image
 
 import tiptop
-from tiptop.config import tiptop_config_path
+from tiptop.config import tiptop_cfg
 from tiptop.perception.cameras.zed_camera import ZedCamera, convert_svo_to_mp4
 from tiptop.perception.utils import get_o3d_pcd
 from tiptop.perception.visualization import visualize_detections, visualize_masks
@@ -212,8 +212,8 @@ def save_run_outputs(save_dir: Path, env, grasps: dict) -> None:
     torch.save(grasps, perception_dir / "grasps.pt")
     _log.info(f"Saved grasps to {perception_dir}/grasps.pt")
 
-    # tiptop config for reproducibility
-    shutil.copy2(tiptop_config_path, save_dir / "tiptop.yml")
+    # Save effective merged config (file + CLI overrides) for reproducibility
+    OmegaConf.save(tiptop_cfg(), save_dir / "tiptop.yml")
     _log.info(f"Saved tiptop config to {save_dir}/tiptop.yml")
 
 

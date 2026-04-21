@@ -120,7 +120,17 @@ def load_gripper_mask() -> Bool[np.ndarray, "h w"]:
     return gripper_mask
 
 
-def setup_logging(level: int = logging.INFO):
+def setup_logging(level: int = logging.INFO, root_level: int | None = None):
+    """Configure root logger and stdout console handler. Call once per entrypoint.
+
+    Args:
+        level: Level for the stdout console handler.
+        root_level: Level for the root logger. Defaults to `level`. Set lower than `level`
+            (e.g. DEBUG) when a file handler added later should capture more detail than console.
+    """
+    if root_level is None:
+        root_level = level
+
     # Ensure stdout and stderr use UTF-8 encoding to handle Unicode characters
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
@@ -154,14 +164,13 @@ def setup_logging(level: int = logging.INFO):
 
     # Configure the root logger (force reconfiguration)
     root_logger = logging.getLogger()
-    root_logger.setLevel(level)
+    root_logger.setLevel(root_level)
 
     # Remove only default StreamHandlers (stdout/stderr), keep other handlers (files, etc.)
     for handler in root_logger.handlers[:]:
         if isinstance(handler, logging.StreamHandler) and handler.stream in (sys.stdout, sys.stderr):
             root_logger.removeHandler(handler)
 
-    # Pin explicitly so a later add_file_handler() bumping root doesn't change console
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
     handler.setLevel(level)
@@ -191,42 +200,23 @@ def setup_logging(level: int = logging.INFO):
 
 
 def add_file_handler(log_file: Path, level: int = logging.DEBUG) -> logging.FileHandler:
-    """Add a file handler to the root logger.
-
-    Args:
-        log_file: Path to the log file to create
-        level: Logging level for the file handler
-
-    Returns:
-        The FileHandler instance so it can be removed later
-    """
+    """Add a file handler to the root logger. The root logger must already be configured at or below `level`."""
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # Create file handler with plain formatting (no colors) and UTF-8 encoding
     file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
     file_handler.setLevel(level)
 
-    # Use same format as console but without colors
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     formatter = logging.Formatter(log_format, datefmt="%Y-%m-%d %H:%M:%S")
     file_handler.setFormatter(formatter)
 
-    # Lower root if the file handler is more verbose, so records reach it
-    root_logger = logging.getLogger()
-    if level < root_logger.level:
-        root_logger.setLevel(level)
-    root_logger.addHandler(file_handler)
+    logging.getLogger().addHandler(file_handler)
     return file_handler
 
 
 def remove_file_handler(handler: logging.FileHandler):
-    """Remove a file handler from the root logger and close it.
-
-    Args:
-        handler: The FileHandler to remove
-    """
-    root_logger = logging.getLogger()
-    root_logger.removeHandler(handler)
+    """Remove a file handler from the root logger and close it."""
+    logging.getLogger().removeHandler(handler)
     handler.close()
 
 
