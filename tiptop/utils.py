@@ -120,17 +120,12 @@ def load_gripper_mask() -> Bool[np.ndarray, "h w"]:
     return gripper_mask
 
 
-def setup_logging(level: int = logging.INFO, root_level: int | None = None):
+def setup_logging(level: int = logging.INFO):
     """Configure root logger and stdout console handler. Call once per entrypoint.
 
-    Args:
-        level: Level for the stdout console handler.
-        root_level: Level for the root logger. Defaults to `level`. Set lower than `level`
-            (e.g. DEBUG) when a file handler added later should capture more detail than console.
+    The root logger is set to DEBUG so handlers added later (file handlers, etc.) can
+    filter at their own level. `level` controls only the stdout console handler.
     """
-    if root_level is None:
-        root_level = level
-
     # Ensure stdout and stderr use UTF-8 encoding to handle Unicode characters
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
@@ -162,9 +157,9 @@ def setup_logging(level: int = logging.INFO, root_level: int | None = None):
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     formatter = CustomFormatter(log_format, datefmt="%Y-%m-%d %H:%M:%S")
 
-    # Configure the root logger (force reconfiguration)
+    # Root at DEBUG so later-added handlers (e.g. per-run file handler) can capture DEBUG
     root_logger = logging.getLogger()
-    root_logger.setLevel(root_level)
+    root_logger.setLevel(logging.DEBUG)
 
     # Remove only default StreamHandlers (stdout/stderr), keep other handlers (files, etc.)
     for handler in root_logger.handlers[:]:
@@ -200,7 +195,7 @@ def setup_logging(level: int = logging.INFO, root_level: int | None = None):
 
 
 def add_file_handler(log_file: Path, level: int = logging.DEBUG) -> logging.FileHandler:
-    """Add a file handler to the root logger. The root logger must already be configured at or below `level`."""
+    """Add a file handler to the root logger. Pairs with setup_logging() which pins root at DEBUG."""
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
     file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")

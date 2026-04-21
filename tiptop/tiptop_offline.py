@@ -250,7 +250,7 @@ def run_tiptop_h5(
 
 def h5_entrypoint():
     """CLI entrypoint for tiptop-h5. Force-exits to avoid GPU cleanup segfaults."""
-    setup_logging(level=logging.INFO, root_level=logging.DEBUG)
+    setup_logging(level=logging.INFO)
     print_tiptop_banner()
     try:
         tyro.cli(run_tiptop_h5)
@@ -406,7 +406,7 @@ def run_tiptop_rerun(
 
 def rerun_entrypoint():
     """CLI entrypoint for tiptop-rerun. Force-exits to avoid GPU cleanup segfaults."""
-    setup_logging(level=logging.INFO, root_level=logging.DEBUG)
+    setup_logging(level=logging.INFO)
     print_tiptop_banner()
     try:
         tyro.cli(run_tiptop_rerun)
