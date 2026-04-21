@@ -39,6 +39,11 @@ from tiptop.utils import (
 
 _log = logging.getLogger(__name__)
 
+# Default planning parameters, shared between tiptop-h5 and tiptop-rerun fallbacks
+DEFAULT_MAX_PLANNING_TIME = 60.0
+DEFAULT_OPT_STEPS_PER_SKELETON = 500
+DEFAULT_NUM_PARTICLES = 256
+
 
 def run_tiptop(
     observation: Observation,
@@ -217,9 +222,9 @@ def run_tiptop_h5(
     h5_path: str,
     task_instruction: str,
     output_dir: str = "tiptop_offline_outputs",
-    max_planning_time: float = 60.0,
-    opt_steps_per_skeleton: int = 500,
-    num_particles: int = 256,
+    max_planning_time: float = DEFAULT_MAX_PLANNING_TIME,
+    opt_steps_per_skeleton: int = DEFAULT_OPT_STEPS_PER_SKELETON,
+    num_particles: int = DEFAULT_NUM_PARTICLES,
     cutamp_visualize: bool = False,
     rr_spawn: bool = True,
 ):
@@ -362,23 +367,40 @@ def run_tiptop_rerun(
             "Rerun may differ from the original run."
         )
 
+    # Planning param defaults come from the original run's cuTAMP config if present.
+    # Older runs (or runs where planning failed before the config was written) may
+    # not have it — fall back to the same defaults as tiptop-h5 so rerun stays usable.
     cutamp_config_path = run_dir_path / "cutamp" / "config.yml"
-    if not cutamp_config_path.exists():
-        raise FileNotFoundError(f"Could not find cuTAMP config at {cutamp_config_path}")
-    cutamp_config = OmegaConf.to_container(OmegaConf.load(cutamp_config_path))
+    if cutamp_config_path.exists():
+        cutamp_config = OmegaConf.to_container(OmegaConf.load(cutamp_config_path))
+        default_max_planning_time = cutamp_config["max_loop_dur"]
+        default_opt_steps = cutamp_config["num_opt_steps"]
+        default_num_particles = cutamp_config["num_particles"]
+        defaults_source = "original run"
+    else:
+        _log.warning(
+            f"No cuTAMP config at {cutamp_config_path} — falling back to built-in defaults "
+            f"(max_planning_time={DEFAULT_MAX_PLANNING_TIME}, "
+            f"opt_steps_per_skeleton={DEFAULT_OPT_STEPS_PER_SKELETON}, "
+            f"num_particles={DEFAULT_NUM_PARTICLES})."
+        )
+        default_max_planning_time = DEFAULT_MAX_PLANNING_TIME
+        default_opt_steps = DEFAULT_OPT_STEPS_PER_SKELETON
+        default_num_particles = DEFAULT_NUM_PARTICLES
+        defaults_source = "built-in defaults"
 
     if task_instruction is None:
         task_instruction = metadata["task_instruction"]
         _log.info(f"Using task instruction from original run: '{task_instruction}'")
     if max_planning_time is None:
-        max_planning_time = cutamp_config["max_loop_dur"]
-        _log.info(f"Using max_planning_time from original run: {max_planning_time}")
+        max_planning_time = default_max_planning_time
+        _log.info(f"Using max_planning_time from {defaults_source}: {max_planning_time}")
     if opt_steps_per_skeleton is None:
-        opt_steps_per_skeleton = cutamp_config["num_opt_steps"]
-        _log.info(f"Using opt_steps_per_skeleton from original run: {opt_steps_per_skeleton}")
+        opt_steps_per_skeleton = default_opt_steps
+        _log.info(f"Using opt_steps_per_skeleton from {defaults_source}: {opt_steps_per_skeleton}")
     if num_particles is None:
-        num_particles = cutamp_config["num_particles"]
-        _log.info(f"Using num_particles from original run: {num_particles}")
+        num_particles = default_num_particles
+        _log.info(f"Using num_particles from {defaults_source}: {num_particles}")
 
     run_tiptop(
         observation=observation,
