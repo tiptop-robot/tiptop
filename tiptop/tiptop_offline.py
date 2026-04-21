@@ -39,11 +39,6 @@ from tiptop.utils import (
 
 _log = logging.getLogger(__name__)
 
-# Default planning parameters, shared between tiptop-h5 and tiptop-rerun fallbacks
-DEFAULT_MAX_PLANNING_TIME = 60.0
-DEFAULT_OPT_STEPS_PER_SKELETON = 500
-DEFAULT_NUM_PARTICLES = 256
-
 
 def run_tiptop(
     observation: Observation,
@@ -221,10 +216,10 @@ def load_h5_observation(h5_path: Path) -> Observation:
 def run_tiptop_h5(
     h5_path: str,
     task_instruction: str,
-    output_dir: str = "tiptop_offline_outputs",
-    max_planning_time: float = DEFAULT_MAX_PLANNING_TIME,
-    opt_steps_per_skeleton: int = DEFAULT_OPT_STEPS_PER_SKELETON,
-    num_particles: int = DEFAULT_NUM_PARTICLES,
+    output_dir: str = "tiptop_h5_outputs",
+    max_planning_time: float = 60.0,
+    opt_steps_per_skeleton: int = 500,
+    num_particles: int = 256,
     cutamp_visualize: bool = False,
     rr_spawn: bool = True,
 ):
@@ -327,7 +322,7 @@ def load_observation_from_run(run_dir: Path) -> tuple[Observation, np.ndarray | 
 def run_tiptop_rerun(
     run_dir: str,
     task_instruction: str | None = None,
-    output_dir: str = "tiptop_offline_outputs",
+    output_dir: str = "tiptop_rerun_outputs",
     max_planning_time: float | None = None,
     opt_steps_per_skeleton: int | None = None,
     num_particles: int | None = None,
@@ -369,7 +364,8 @@ def run_tiptop_rerun(
 
     # Planning param defaults come from the original run's cuTAMP config if present.
     # Older runs (or runs where planning failed before the config was written) may
-    # not have it — fall back to the same defaults as tiptop-h5 so rerun stays usable.
+    # not have it — fall back to the same defaults as tiptop-h5. Keep these in sync
+    # with run_tiptop_h5's signature above.
     cutamp_config_path = run_dir_path / "cutamp" / "config.yml"
     if cutamp_config_path.exists():
         cutamp_config = OmegaConf.to_container(OmegaConf.load(cutamp_config_path))
@@ -378,16 +374,16 @@ def run_tiptop_rerun(
         default_num_particles = cutamp_config["num_particles"]
         defaults_source = "original run"
     else:
+        default_max_planning_time = 60.0
+        default_opt_steps = 500
+        default_num_particles = 256
+        defaults_source = "built-in defaults"
         _log.warning(
             f"No cuTAMP config at {cutamp_config_path} — falling back to built-in defaults "
-            f"(max_planning_time={DEFAULT_MAX_PLANNING_TIME}, "
-            f"opt_steps_per_skeleton={DEFAULT_OPT_STEPS_PER_SKELETON}, "
-            f"num_particles={DEFAULT_NUM_PARTICLES})."
+            f"(max_planning_time={default_max_planning_time}, "
+            f"opt_steps_per_skeleton={default_opt_steps}, "
+            f"num_particles={default_num_particles})."
         )
-        default_max_planning_time = DEFAULT_MAX_PLANNING_TIME
-        default_opt_steps = DEFAULT_OPT_STEPS_PER_SKELETON
-        default_num_particles = DEFAULT_NUM_PARTICLES
-        defaults_source = "built-in defaults"
 
     if task_instruction is None:
         task_instruction = metadata["task_instruction"]
