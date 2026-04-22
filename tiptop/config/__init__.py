@@ -24,9 +24,9 @@ def set_tiptop_cfg_from_file(cfg_path: Path) -> DictConfig:
     return cfg
 
 
-def tiptop_cfg(force_reload: bool = False) -> DictConfig:
-    """Return the cached TiPToP config, loading the default config file on first call or when force_reload is True."""
-    if _cached_cfg is None or force_reload:
+def tiptop_cfg() -> DictConfig:
+    """Return the cached TiPToP config, loading the default config file on first call."""
+    if _cached_cfg is None:
         return set_tiptop_cfg_from_file(config_dir / "tiptop.yml")
     return _cached_cfg
 
