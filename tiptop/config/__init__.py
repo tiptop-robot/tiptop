@@ -18,7 +18,7 @@ _cached_cfg_path: Path | None = None
 def set_tiptop_cfg_from_file(cfg_path: Path) -> DictConfig:
     """Load and cache the TiPToP config from a specific file."""
     global _cached_cfg, _cached_cfg_path
-    cfg = OmegaConf.merge(OmegaConf.load(cfg_path), OmegaConf.from_cli())
+    cfg = OmegaConf.load(cfg_path)
     _cached_cfg = cfg
     _cached_cfg_path = Path(cfg_path)
     return cfg
