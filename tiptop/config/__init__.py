@@ -9,21 +9,34 @@ from scipy.spatial.transform import Rotation
 
 config_dir = Path(__file__).parent
 config_assets_dir = config_dir / "assets"
-tiptop_config_path = config_dir / "tiptop.yml"
 calib_info_path = config_assets_dir / "calibration_info.json"
 
-_cached_cfg = None  # Cache for lazy loading
+_cached_cfg: DictConfig | None = None
+_cached_cfg_path: Path | None = None
 
 
-def tiptop_cfg(force_reload: bool = False) -> DictConfig:
-    """Load TiPToP config from file."""
-    global _cached_cfg
-    if _cached_cfg is None or force_reload:
-        _cached_cfg = OmegaConf.load(tiptop_config_path)
-        # Merge CLI overrides from sys.argv
-        cli = OmegaConf.from_cli()
-        _cached_cfg = OmegaConf.merge(_cached_cfg, cli)
+def set_tiptop_cfg_from_file(cfg_path: Path) -> DictConfig:
+    """Load and cache the TiPToP config from a specific file. Call before any tiptop_cfg() usage."""
+    global _cached_cfg, _cached_cfg_path
+    cfg = OmegaConf.load(cfg_path)
+    _cached_cfg = cfg
+    _cached_cfg_path = Path(cfg_path)
+    return cfg
+
+
+def tiptop_cfg() -> DictConfig:
+    """Return the cached TiPToP config, loading the default config file on first call."""
+    if _cached_cfg is None:
+        return set_tiptop_cfg_from_file(config_dir / "tiptop.yml")
     return _cached_cfg
+
+
+def get_tiptop_cfg_path() -> Path:
+    """Return the source path of the currently-cached config. Loads the default config if not yet cached."""
+    if _cached_cfg_path is None:
+        tiptop_cfg()
+    assert _cached_cfg_path is not None
+    return _cached_cfg_path
 
 
 def load_calibration_info():

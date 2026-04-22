@@ -18,7 +18,7 @@ from jaxtyping import Bool, Float, UInt8
 from PIL import Image
 
 import tiptop
-from tiptop.config import tiptop_config_path
+from tiptop.config import get_tiptop_cfg_path
 from tiptop.perception.cameras.zed_camera import ZedCamera, convert_svo_to_mp4
 from tiptop.perception.utils import get_o3d_pcd
 from tiptop.perception.visualization import visualize_detections, visualize_masks
@@ -213,7 +213,7 @@ def save_run_outputs(save_dir: Path, env, grasps: dict) -> None:
     _log.info(f"Saved grasps to {perception_dir}/grasps.pt")
 
     # tiptop config for reproducibility
-    shutil.copy2(tiptop_config_path, save_dir / "tiptop.yml")
+    shutil.copy2(get_tiptop_cfg_path(), save_dir / "tiptop.yml")
     _log.info(f"Saved tiptop config to {save_dir}/tiptop.yml")
 
 

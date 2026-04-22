@@ -89,8 +89,9 @@ gripper-close = "tiptop.scripts.gripper_actuate:gripper_close_entrypoint"
 # Main tiptop demo
 tiptop-run = "tiptop.tiptop_run:entrypoint"
 
-# tiptop h5 run
-tiptop-h5 = "tiptop.tiptop_h5:entrypoint"
+# Offline tiptop (no real robot)
+tiptop-h5 = "tiptop.tiptop_offline:h5_entrypoint"
+tiptop-rerun = "tiptop.tiptop_offline:rerun_entrypoint"
 
 # tiptop as a service
 tiptop-server = "tiptop.tiptop_websocket_server:entrypoint"

@@ -84,7 +84,7 @@ After warmup and health checks you'll be prompted to enter a natural language ta
 
 ### tiptop-h5
 
-Offline evaluation mode. Loads a pre-recorded RGB-D observation from an H5 file (droid-sim-evals format), runs perception and planning without a real robot, and saves the resulting plan as a JSON file for downstream evaluation.
+Offline evaluation mode. Loads a pre-recorded RGB-D observation from an H5 file (droid-sim-evals format) and runs the TiPToP pipeline without a real robot, saving a serialized plan JSON for downstream evaluation.
 
 **Prerequisites:**
 - M2T2 server must be running
@@ -114,6 +114,46 @@ tiptop-h5 \
   --task-instruction "put the cube in the bowl" \
   --output-dir my_eval_outputs \
   --no-rr-spawn
+```
+
+---
+
+### tiptop-rerun
+
+Re-runs TiPToP from a saved run directory. Loads the observation (RGB, depth, intrinsics, camera pose, joint positions, and gripper mask) from a previous run. Task instruction and planning parameters default to the original run's values but can be overridden.
+
+**Prerequisites:**
+- M2T2 server must be running
+- `GOOGLE_API_KEY` environment variable must be set
+- A saved TiPToP run directory (from `tiptop-run`, `tiptop-h5`, or `tiptop-rerun`)
+
+**Available flags:**
+
+- `--run-dir STR` - Path to a saved TiPToP run directory (required)
+- `--task-instruction STR` - Task instruction override; defaults to the original run's instruction
+- `--output-dir STR` - Top-level directory to save results; a timestamped subdirectory will be created (default: "tiptop_rerun_outputs")
+- `--max-planning-time FLOAT` - Override max planning time; defaults to the original run's value
+- `--opt-steps-per-skeleton INT` - Override optimization steps per skeleton; defaults to the original run's value
+- `--num-particles INT` - Override number of particles; defaults to the original run's value
+- `--cutamp-visualize / --no-cutamp-visualize` - Enable cuTAMP planning visualization in Rerun, significantly slows down planning (default: False)
+- `--rr-spawn / --no-rr-spawn` - Spawn a Rerun viewer; set to False to skip visualization (default: True)
+
+**Example usage:**
+
+```bash
+# Re-run from a previous run with original parameters
+tiptop-rerun --run-dir tiptop_outputs/eval/2026-04-05_13-30-20/
+
+# Re-run with a different task instruction
+tiptop-rerun \
+  --run-dir tiptop_outputs/eval/2026-04-05_13-30-20/ \
+  --task-instruction "put the cube on the table"
+
+# Re-run with more particles and longer planning time
+tiptop-rerun \
+  --run-dir tiptop_outputs/eval/2026-01-24_15-30-00/ \
+  --num-particles 512 \
+  --max-planning-time 120.0
 ```
 
 ---
@@ -407,7 +447,7 @@ Replays and visualizes the outputs of a saved TiPToP run in Rerun. Loads percept
 
 **Available flags:**
 
-- `--save-dir STR` - Path to the saved run directory (required)
+- `--run-dir STR` - Path to a saved TiPToP run directory (required)
 - `--visualize-grasps / --no-visualize-grasps` - Visualize M2T2 grasp candidates (default: True)
 - `--visualize-plan / --no-visualize-plan` - Animate the TiPToP plan trajectory with object poses (default: True)
 - `--num-grasps-per-object INT` - Maximum number of grasp candidates to display per object (default: 30)
@@ -417,13 +457,13 @@ Replays and visualizes the outputs of a saved TiPToP run in Rerun. Loads percept
 
 ```bash
 # Visualize a run directory
-viz-tiptop-run --save-dir tiptop_outputs/eval/2026-01-24_15-30-00/
+viz-tiptop-run --run-dir tiptop_outputs/eval/2026-01-24_15-30-00/
 
 # Visualize perception only, skip plan animation
-viz-tiptop-run --save-dir tiptop_outputs/eval/2026-01-24_15-30-00/ --no-visualize-plan
+viz-tiptop-run --run-dir tiptop_outputs/eval/2026-01-24_15-30-00/ --no-visualize-plan
 
 # Show fewer grasps
-viz-tiptop-run --save-dir tiptop_outputs/eval/2026-01-24_15-30-00/ --num-grasps-per-object 10
+viz-tiptop-run --run-dir tiptop_outputs/eval/2026-01-24_15-30-00/ --num-grasps-per-object 10
 ```
 
 A Rerun window will open automatically. Use the `tiptop_execution` timeline to step through the planned trajectory. The `cam` entity shows the camera pose and image at capture time, and `world/` contains all objects and their poses throughout execution.

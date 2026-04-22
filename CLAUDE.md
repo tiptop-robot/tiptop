@@ -244,6 +244,7 @@ gdown <link-url>
 
 - **Discuss before implementing** — When the approach isn't obvious (e.g., where to put docs, how to structure config), talk through options before writing code
 - **Comments and docstrings must be accurate** — Don't write comments that describe implementation details irrelevant to the reader or are vaguely wrong. If a comment doesn't add real information, drop it
+- **Don't pile iteration rationale into comments/docstrings** — When you revise code, don't tack on explanations of why you chose this shape or cross-module consequences ("path is cached so reruns forward the original", "preserves comments"). Keep comments minimal and code-local; rationale and history belong in the PR description
 - **Don't add dead code paths** — If every case goes down the same branch, don't add the other branch "just in case." Keep what's tested, remove what isn't
 
 ## Documentation Style Guide
