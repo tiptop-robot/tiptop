@@ -16,26 +16,24 @@ _cached_cfg: DictConfig | None = None
 _cached_cfg_path: Path | None = None
 
 
-def tiptop_cfg(force_reload: bool = False) -> DictConfig:
-    """Load TiPToP config from file."""
+def _load_and_cache(cfg_path: Path) -> DictConfig:
     global _cached_cfg, _cached_cfg_path
+    cfg = OmegaConf.merge(OmegaConf.load(cfg_path), OmegaConf.from_cli())
+    _cached_cfg = cfg
+    _cached_cfg_path = Path(cfg_path)
+    return cfg
+
+
+def tiptop_cfg(force_reload: bool = False) -> DictConfig:
+    """Load TiPToP config from file, merged with CLI overrides from sys.argv."""
     if _cached_cfg is None or force_reload:
-        _cached_cfg = OmegaConf.load(tiptop_config_path)
-        # Merge CLI overrides from sys.argv
-        cli = OmegaConf.from_cli()
-        _cached_cfg = OmegaConf.merge(_cached_cfg, cli)
-        _cached_cfg_path = tiptop_config_path
+        return _load_and_cache(tiptop_config_path)
     return _cached_cfg
 
 
 def set_tiptop_cfg_from_file(cfg_path: Path) -> DictConfig:
     """Override the cached TiPToP config with one loaded from a specific file."""
-    global _cached_cfg, _cached_cfg_path
-    _cached_cfg = OmegaConf.load(cfg_path)
-    cli = OmegaConf.from_cli()
-    _cached_cfg = OmegaConf.merge(_cached_cfg, cli)
-    _cached_cfg_path = Path(cfg_path)
-    return _cached_cfg
+    return _load_and_cache(cfg_path)
 
 
 def get_tiptop_cfg_path() -> Path:

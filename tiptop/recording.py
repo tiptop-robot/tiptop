@@ -212,7 +212,7 @@ def save_run_outputs(save_dir: Path, env, grasps: dict) -> None:
     torch.save(grasps, perception_dir / "grasps.pt")
     _log.info(f"Saved grasps to {perception_dir}/grasps.pt")
 
-    # Copy the source config (preserves comments) — path is cached so reruns forward the original
+    # Copy the source config (preserves comments)
     shutil.copy2(get_tiptop_cfg_path(), save_dir / "tiptop.yml")
     _log.info(f"Saved tiptop config to {save_dir}/tiptop.yml")
 
