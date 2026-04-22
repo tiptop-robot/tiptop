@@ -9,7 +9,7 @@ from scipy.spatial.transform import Rotation
 
 config_dir = Path(__file__).parent
 config_assets_dir = config_dir / "assets"
-tiptop_config_path = config_dir / "tiptop.yml"
+_tiptop_config_path = config_dir / "tiptop.yml"
 calib_info_path = config_assets_dir / "calibration_info.json"
 
 _cached_cfg: DictConfig | None = None
@@ -27,7 +27,7 @@ def _load_and_cache(cfg_path: Path) -> DictConfig:
 def tiptop_cfg(force_reload: bool = False) -> DictConfig:
     """Load TiPToP config from file, merged with CLI overrides from sys.argv."""
     if _cached_cfg is None or force_reload:
-        return _load_and_cache(tiptop_config_path)
+        return _load_and_cache(_tiptop_config_path)
     return _cached_cfg
 
 
