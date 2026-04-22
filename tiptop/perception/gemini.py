@@ -54,12 +54,18 @@ def _parse_response(response_text: str) -> tuple[list, list]:
     return bboxes, grounded_atoms
 
 
+# Both temperature and thinking_budget are pinned to 0 for determinism and latency:
+# downstream perception/TAMP assumes stable bbox+predicate outputs across runs, and
+# disabling thinking keeps per-call latency predictable for the real-time pipeline.
+_TEMPERATURE = 0.0
+_THINKING_BUDGET = 0
+
+
 def detect_and_translate(
     image: Image.Image,
     task_instruction: str,
     client: genai.Client | None = None,
     model_id: str = "gemini-robotics-er-1.5-preview",
-    temperature: float | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Detect objects and translate task in a single Gemini API call.
 
@@ -68,7 +74,6 @@ def detect_and_translate(
         task_instruction: The natural language task to translate.
         client: Gemini API client. If None, a new client will be created.
         model_id: Gemini model ID to use.
-        temperature: Temperature for generation.
 
     Returns:
         Tuple of (bboxes, grounded_atoms) where:
@@ -81,7 +86,7 @@ def detect_and_translate(
         model=model_id,
         contents=[image, prompt],
         config=types.GenerateContentConfig(
-            temperature=temperature, thinking_config=types.ThinkingConfig(thinking_budget=0)
+            temperature=_TEMPERATURE, thinking_config=types.ThinkingConfig(thinking_budget=_THINKING_BUDGET)
         ),
     )
     return _parse_response(response.text)
@@ -92,7 +97,6 @@ async def detect_and_translate_async(
     task_instruction: str,
     client: genai.Client | None = None,
     model_id: str = "gemini-robotics-er-1.5-preview",
-    temperature: float | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Asynchronously detect objects and translate task in a single Gemini API call.
 
@@ -101,7 +105,6 @@ async def detect_and_translate_async(
         task_instruction: The natural language task to translate.
         client: Gemini API client. If None, a new client will be created.
         model_id: Gemini model ID to use.
-        temperature: Temperature for generation.
 
     Returns:
         Tuple of (bboxes, grounded_atoms) where:
@@ -114,7 +117,7 @@ async def detect_and_translate_async(
         model=model_id,
         contents=[image, prompt],
         config=types.GenerateContentConfig(
-            temperature=temperature, thinking_config=types.ThinkingConfig(thinking_budget=0)
+            temperature=_TEMPERATURE, thinking_config=types.ThinkingConfig(thinking_budget=_THINKING_BUDGET)
         ),
     )
     return _parse_response(response.text)
