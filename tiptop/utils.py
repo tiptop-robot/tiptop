@@ -195,12 +195,20 @@ def setup_logging(level: int = logging.INFO):
 
 
 def add_file_handler(log_file: Path, level: int = logging.DEBUG) -> logging.FileHandler:
-    """Add a file handler to the root logger. Pairs with setup_logging() which pins root at DEBUG."""
+    """Add a file handler to the root logger.
+
+    Args:
+        log_file: Path to the log file to create
+        level: Logging level for the file handler
+
+    Returns:
+        The FileHandler instance so it can be removed later via remove_file_handler().
+    """
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
+    # Plain formatter (no ANSI colors) and UTF-8 encoding so the file stays readable
     file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
     file_handler.setLevel(level)
-
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     formatter = logging.Formatter(log_format, datefmt="%Y-%m-%d %H:%M:%S")
     file_handler.setFormatter(formatter)
@@ -210,7 +218,11 @@ def add_file_handler(log_file: Path, level: int = logging.DEBUG) -> logging.File
 
 
 def remove_file_handler(handler: logging.FileHandler):
-    """Remove a file handler from the root logger and close it."""
+    """Remove a file handler from the root logger and close it.
+
+    Args:
+        handler: The FileHandler previously returned by add_file_handler().
+    """
     logging.getLogger().removeHandler(handler)
     handler.close()
 
