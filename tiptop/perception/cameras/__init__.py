@@ -8,13 +8,11 @@ from tiptop.perception.cameras.frame import Frame
 from tiptop.perception.cameras.rs_camera import (
     RealsenseCamera,
     RealsenseFrame,
-    RealsenseIntrinsics,
     rs_infer_depth_async,
 )
 from tiptop.perception.cameras.zed_camera import (
     ZedCamera,
     ZedFrame,
-    ZedIntrinsics,
     zed_infer_depth_async,
 )
 
