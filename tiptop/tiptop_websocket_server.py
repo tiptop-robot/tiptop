@@ -145,7 +145,7 @@ class TiptopPlanningServer:
                 obs["run_id"] = run_id  # normalize so _run_pipeline sees the same value
                 _log.info(f"[run_id={run_id}] Received planning request: task='{obs.get('task', 'unknown')}'")
 
-                # Run the full pipeline (one at a time to protect shared GPU state)
+                # Serialize pipeline runs: shared cuRobo/GPU state is not safe for concurrent use.
                 infer_start = time.monotonic()
                 async with self._pipeline_lock:
                     result = await self._run_pipeline(obs)
