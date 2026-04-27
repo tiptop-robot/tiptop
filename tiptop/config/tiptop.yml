@@ -48,7 +48,7 @@ perception:
     url: "http://visiongpuws02.csail.mit.edu:1234"
 
   m2t2:
-    url: "http://localhost:8124"
+    url: "http://localhost:8123"
     apply_bounds: true  # Set to false when world coordinates don't match M2T2's expected workspace (e.g. Molmospaces)
 
   sam:
