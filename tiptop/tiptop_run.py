@@ -220,6 +220,18 @@ def _get_task_instruction() -> str:
 def create_tamp_environment(
     object_meshes: dict[str, Mesh], table_cuboid: Cuboid, grounded_atoms: list[dict], include_workspace: bool
 ) -> tuple[TAMPEnvironment, list[Cuboid | Mesh]]:
+    # Reject goals that reference objects not present in the perceived scene.
+    # Without this, cuTAMP's BFS runs without stopping, expanding the move-chain on an unreachable goal.
+    known_labels = set(object_meshes.keys()) | {table_cuboid.name}
+    for atom in grounded_atoms:
+        for arg in atom.get("args", []):
+            if arg not in known_labels:
+                raise ValueError(
+                    f"Goal predicate {atom['predicate']}({', '.join(atom['args'])}) "
+                    f"references unknown object '{arg}'. "
+                    f"Known objects: {sorted(known_labels)}"
+                )
+
     # Identify which objects are used as surfaces (second arg in on(x, y))
     surface_labels = set()
     for atom in grounded_atoms:
