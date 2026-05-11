@@ -77,6 +77,13 @@ Limitations of the current TiPToP system.
 How to contribute to TiPToP, including development setup and code style.
 :::
 
+:::{grid-item-card} 📝 Blog
+:link: blogs/index
+:link-type: doc
+
+Updates, benchmark results, and insights from the TiPToP team.
+:::
+
 ::::
 
 ---
@@ -96,6 +103,7 @@ command-reference
 troubleshooting
 limitations
 contributing
+blogs/index
 ```
 
 ## License
