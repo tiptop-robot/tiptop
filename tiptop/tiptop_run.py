@@ -544,10 +544,6 @@ async def async_entrypoint(container: _DemoContainer, config: TAMPConfiguration,
                 _log.debug(f"Preparing TiPToP for next run...")
                 await check_server_health(session)
 
-                # Release any object held from a previous pick so the gripper is empty for the next run
-                if execute_plan:
-                    container.robot.open_gripper(speed=1.0)
-
                 # Go to capture pose and ask user for instruction
                 _log.debug("Moving robot to capture joint positions")
                 go_to_capture(time_dilation_factor=cfg.robot.time_dilation_factor, motion_gen=container.motion_gen)
