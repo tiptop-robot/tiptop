@@ -211,7 +211,6 @@ class TiptopPlanningServer:
             depth = obs["depth"].copy().astype(np.float32)
             K = obs["intrinsics"].astype(np.float32)
             world_from_cam = obs["world_from_cam"].astype(np.float32)
-
             task_instruction = obs["task"]
             q_init = obs["q_init"]
 
