@@ -49,7 +49,7 @@ perception:
 
   m2t2:
     url: "http://localhost:8123"
-    apply_bounds: true  # Set to false when world coordinates don't match M2T2's expected workspace
+    apply_bounds: true  # Set to false when world coordinates don't match M2T2's expected workspace (i.e., in a different coordinate frame than the base link of the robot)
 
   sam:
     mode: "local"

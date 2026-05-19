@@ -228,8 +228,7 @@ def create_tamp_environment(
             if arg not in known_labels:
                 raise ValueError(
                     f"Goal predicate {atom['predicate']}({', '.join(atom['args'])}) "
-                    f"references unknown object '{arg}'. "
-                    f"Known objects: {sorted(known_labels)}"
+                    f"references unknown object '{arg}'. Known objects: {sorted(known_labels)}"
                 )
 
     # Identify which objects are used as surfaces (second arg in on(x, y))
@@ -251,18 +250,19 @@ def create_tamp_environment(
 
     # Create goal state from grounded atoms
     goal_state: set = set()
-    has_holding = any(atom["predicate"] == "holding" for atom in grounded_atoms)
-    if not has_holding:
-        goal_state.add(HandEmpty.ground())
+    has_holding = False
     for atom in grounded_atoms:
         if atom["predicate"] == "on" and len(atom["args"]) == 2:
             movable_label, surface_label = atom["args"]
             goal_state.add(On.ground(movable_label, surface_label))
             _log.info(f"Goal: {movable_label} on {surface_label}")
         elif atom["predicate"] == "holding" and len(atom["args"]) == 1:
+            has_holding = True
             movable_label = atom["args"][0]
             goal_state.add(Holding.ground(movable_label))
             _log.info(f"Goal: holding {movable_label}")
+    if not has_holding:
+        goal_state.add(HandEmpty.ground())
 
     # All surfaces include table and detected surface objects
     all_surfaces = [table_cuboid, *surfaces]
@@ -543,6 +543,10 @@ async def async_entrypoint(container: _DemoContainer, config: TAMPConfiguration,
             try:
                 _log.debug(f"Preparing TiPToP for next run...")
                 await check_server_health(session)
+
+                # Release any object held from a previous pick so the gripper is empty for the next run
+                if execute_plan:
+                    container.robot.open_gripper(speed=1.0)
 
                 # Go to capture pose and ask user for instruction
                 _log.debug("Moving robot to capture joint positions")

@@ -52,7 +52,7 @@ class TiptopPlanningServer:
         port: int = 8765,
         num_particles: int = 256,
         max_planning_time: float = 60.0,
-        rerun_mode: str = "stream",
+        rerun_mode: str = "disabled",
         include_workspace: bool = False,
     ) -> None:
         if rerun_mode not in {"stream", "save", "disabled"}:
@@ -185,6 +185,7 @@ class TiptopPlanningServer:
                 - success: bool
                 - plan: list of plan steps (trajectory or gripper actions)
                 - error: str or None
+                - save_dir: absolute path to the per-run output directory (logs, metadata, plan, rerun .rrd)
         """
         now = datetime.now()
         timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
@@ -223,7 +224,6 @@ class TiptopPlanningServer:
             observation = Observation(frame=frame, world_from_cam=world_from_cam, q_init=q_init)
 
             # Initialize rerun if enabled (idempotent)
-            rerun_robot = None
             if self._rerun_mode != "disabled":
                 rr.init("tiptop_server", recording_id=timestamp, spawn=self._rerun_mode == "stream")
                 if self._rerun_mode == "save":
@@ -233,7 +233,7 @@ class TiptopPlanningServer:
                 rerun_robot = get_robot_rerun()
 
             _log.info(f"Processing: RGB shape={rgb.shape}, depth shape={depth.shape}, task='{task_instruction}'")
-            if rerun_robot is not None:
+            if self._rerun_mode != "disabled":
                 rerun_robot.set_joint_positions(q_init)
 
             connector = aiohttp.TCPConnector(limit=10, force_close=True)
@@ -251,7 +251,7 @@ class TiptopPlanningServer:
                 )
                 perception_duration = time.monotonic() - perception_start
             # Log camera intrinsics and pose to rerun if enabled
-            if rerun_robot is not None:
+            if self._rerun_mode != "disabled":
                 rr.log("cam", rr.Pinhole(image_from_camera=K))
                 rr.log(
                     "cam",
@@ -276,6 +276,7 @@ class TiptopPlanningServer:
                     "success": False,
                     "plan": None,
                     "error": f"cuTAMP failed to find a plan: {failure_reason}",
+                    "save_dir": str(save_dir.resolve()),
                 }
 
             serialized_plan = serialize_plan(cutamp_plan, q_init)
@@ -287,6 +288,7 @@ class TiptopPlanningServer:
                 "success": True,
                 "plan": serialized_plan,
                 "error": None,
+                "save_dir": str(save_dir.resolve()),
             }
 
         except Exception as e:
@@ -297,6 +299,7 @@ class TiptopPlanningServer:
                 "success": False,
                 "plan": None,
                 "error": str(e),
+                "save_dir": str(save_dir.resolve()),
             }
         finally:
             if env is not None and processed_scene is not None:
@@ -322,7 +325,7 @@ def _run_server(
     port: int = 8765,
     num_particles: int = 256,
     max_planning_time: float = 60.0,
-    rerun_mode: str = "stream",
+    rerun_mode: str = "disabled",
     include_workspace: bool = False,
     m2t2_apply_bounds: bool = True,
 ) -> None:
@@ -335,12 +338,14 @@ def _run_server(
         max_planning_time: Max planning time in seconds.
         rerun_mode: Rerun visualization mode. 'stream' spawns the Rerun viewer; 'save' writes .rrd files to disk; 'disabled' skips all Rerun logging.
         include_workspace: If True, include real-robot workspace cuboids in the collision world.
-        m2t2_apply_bounds: If False, skip M2T2 workspace bounds filtering.
+        m2t2_apply_bounds: When True, the M2T2 server filters grasps to a fixed workspace volume defined in the robot's
+            base-link frame. Set False if the scene point cloud is in a different coordinate frame — otherwise valid
+            grasps outside that volume will be discarded.
     """
     print_tiptop_banner()
     check_cutamp_version()
     setup_logging()
-    cfg = tiptop_cfg(force_reload=True)
+    cfg = tiptop_cfg()
     cfg.perception.m2t2.apply_bounds = m2t2_apply_bounds
     logging.getLogger("websockets.server").setLevel(logging.INFO)
 
