@@ -16,7 +16,7 @@ robot:
   # This corresponds to the speed of the robot
   # Start with 0.2 for safety, we DO NOT recommend going beyond 0.6 for safety
   # We use 0.6 on our setup at MIT, where we have managed the camera USB cable carefully
-  time_dilation_factor: 0.6
+  time_dilation_factor: 0.2
 
   # Robot configurations
   q_home: [0.0, -0.628, 0.0, -2.513, 0.0, 1.885, 0.0]
@@ -49,7 +49,7 @@ perception:
 
   m2t2:
     url: "http://localhost:8123"
-    apply_bounds: true  # Set to false when world coordinates don't match M2T2's expected workspace (e.g. Molmospaces)
+    apply_bounds: true  # Set to false when world coordinates don't match M2T2's expected workspace
 
   sam:
     mode: "local"

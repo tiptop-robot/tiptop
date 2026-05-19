@@ -402,7 +402,7 @@ def process_scene_geometry(
 
         # Log the point cloud
         pcd = object_pcds[label]
-        rr.log(f"world/obj_pcd/{label_clean}", rr.Points3D(positions=pcd.points, colors=pcd.colors))
+        rr.log(f"obj_pcd/{label_clean}", rr.Points3D(positions=pcd.points, colors=pcd.colors))
 
         # Transform grasps to tcp frame
         grasp_dict = filtered_grasps[label]
@@ -432,7 +432,7 @@ def process_scene_geometry(
 
         for grasp_idx, (verts, color) in enumerate(zip(transformed_verts, colors)):
             rr.log(
-                f"world/grasps/{label}/{grasp_idx:04d}",
+                f"grasps/{label}/{grasp_idx:04d}",
                 rr.Mesh3D(
                     vertex_positions=verts, triangle_indices=faces, vertex_colors=np.tile(color, (len(verts), 1))
                 ),
@@ -498,7 +498,7 @@ async def run_perception(
 
     if log_to_rerun:
         rr.log(
-            "world/pcd",
+            "pcd",
             rr.Points3D(
                 positions=depth_results["xyz_map"].reshape(-1, 3), colors=depth_results["rgb_map"].reshape(-1, 3)
             ),
