@@ -327,7 +327,6 @@ def _run_server(
     max_planning_time: float = 60.0,
     rerun_mode: str = "disabled",
     include_workspace: bool = False,
-    m2t2_apply_bounds: bool = True,
 ) -> None:
     """Tiptop websocket planning server.
 
@@ -338,15 +337,10 @@ def _run_server(
         max_planning_time: Max planning time in seconds.
         rerun_mode: Rerun visualization mode. 'stream' spawns the Rerun viewer; 'save' writes .rrd files to disk; 'disabled' skips all Rerun logging.
         include_workspace: If True, include real-robot workspace cuboids in the collision world.
-        m2t2_apply_bounds: When True, the M2T2 server filters grasps to a fixed workspace volume defined in the robot's
-            base-link frame. Set False if the scene point cloud is in a different coordinate frame — otherwise valid
-            grasps outside that volume will be discarded.
     """
     print_tiptop_banner()
     check_cutamp_version()
     setup_logging()
-    cfg = tiptop_cfg()
-    cfg.perception.m2t2.apply_bounds = m2t2_apply_bounds
     logging.getLogger("websockets.server").setLevel(logging.INFO)
 
     server = TiptopPlanningServer(

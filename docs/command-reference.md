@@ -134,7 +134,6 @@ Runs the TiPToP perception and planning pipeline as a WebSocket server. Clients 
 - `--max-planning-time FLOAT` - Maximum time to spend planning with cuTAMP across all skeletons in seconds (default: 60.0)
 - `--rerun-mode STR` - Rerun visualization mode: `"stream"` spawns the Rerun viewer, `"save"` writes `.rrd` files to disk, `"disabled"` skips all Rerun logging (default: "disabled")
 - `--include-workspace / --no-include-workspace` - Include real-robot workspace cuboids in the collision world (default: False)
-- `--m2t2-apply-bounds / --no-m2t2-apply-bounds` - When enabled, M2T2 filters grasps to a fixed workspace volume defined in the robot's base-link frame. Disable when the scene point cloud is in a different coordinate frame to avoid discarding valid grasps (default: True)
 
 **Example usage:**
 
