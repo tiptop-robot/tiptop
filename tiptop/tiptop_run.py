@@ -547,6 +547,7 @@ async def async_entrypoint(container: _DemoContainer, config: TAMPConfiguration,
                 # Go to capture pose and ask user for instruction
                 _log.debug("Moving robot to capture joint positions")
                 go_to_capture(time_dilation_factor=cfg.robot.time_dilation_factor, motion_gen=container.motion_gen)
+                container.robot.open_gripper()  # ensure gripper is open
                 task_instruction = _get_task_instruction()  # Let UserExitException propagate
                 _log.info(f"User entered instruction: {task_instruction}")
 
@@ -649,6 +650,19 @@ async def async_entrypoint(container: _DemoContainer, config: TAMPConfiguration,
 
                     if execute_plan:
                         _label_rollout(save_dir, output_dir, date_str, timestamp)
+
+                        # If the goal was just to pick an object (i.e., goal contains Holding), ask the user to confirm before
+                        # opening the gripper so the object can drop safely
+                        if cutamp_plan is not None and any(atom.fluent.name == Holding.name for atom in env.goal_state):
+                            print("WARNING: object will drop when gripper opens, so be ready to catch it.")
+                            while True:
+                                try:
+                                    response = input("Open gripper? [y]: ").strip().lower()
+                                except KeyboardInterrupt:
+                                    raise UserExitException("User interrupted with Ctrl+C")
+                                if response == "y":
+                                    break
+                            container.robot.open_gripper()
                 except Exception:
                     _log.exception("TiPToP run failed")
                     raise
