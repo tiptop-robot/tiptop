@@ -72,6 +72,10 @@ async def reconstruct_objects_with_recgen(
             xyz_obj = xyz_obj[valid]
             rgb_obj = rgb_obj[valid]
 
+        if len(xyz_obj) < 10:
+            _log.warning(f"Skipping {label}: only {len(xyz_obj)} valid depth points")
+            continue
+
         t0 = time.perf_counter()
         payload = await generate_shape_async(
             session,

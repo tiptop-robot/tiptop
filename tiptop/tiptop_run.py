@@ -341,10 +341,13 @@ def process_scene_geometry(
     config = TAMPConfiguration()
     table_top_z = table_trimesh.bounds[1, 2] + config.world_activation_distance + config.coll_sphere_radius * 2
     if recgen_meshes is not None:
-        object_trimeshes = recgen_meshes
+        assert recgen_pcds is not None, "recgen_pcds must be provided alongside recgen_meshes"
         # RecGen returns un-z-filtered pcds; apply the same table-relative filter
         # the convex-hull path uses before grasp linking.
         object_pcds_computed = _filter_pcds_above_z(recgen_pcds, table_top_z)
+        # _filter_pcds_above_z can drop labels (no points above table); keep the mesh dict in sync
+        # so downstream loops over object_trimeshes don't KeyError on the pcd dict.
+        object_trimeshes = {label: mesh for label, mesh in recgen_meshes.items() if label in object_pcds_computed}
     else:
         object_trimeshes, object_pcds_computed = segment_pointcloud_by_masks(
             xyz_map,
