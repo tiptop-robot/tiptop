@@ -55,6 +55,15 @@ perception:
   sam:
     mode: "local"
 
+  recgen:
+    url: "http://localhost:7324"
+    # Use RecGen for object shape completion instead of convex hulls.
+    # Typically set to false in production — RecGen is significantly slower than convex hulls.
+    enabled: true
+    # Target face count per object after server-side quadric edge-collapse decimation.
+    # Set to null to disable decimation (will send huge meshes over the wire).
+    target_faces: 1000
+
   # Perception hyperparameters
   depth_trunc_m: 5.0             # Depth truncation threshold in meters
   voxel_downsample_size: 0.0075  # Point cloud downsampling in meters before feeding into M2T2

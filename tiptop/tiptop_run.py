@@ -40,6 +40,7 @@ from tiptop.perception.cameras import (
 from tiptop.perception.m2t2 import m2t2_to_tiptop_transform
 from tiptop.perception.sam2 import sam2_client
 from tiptop.perception.segmentation import segment_pointcloud_by_masks, segment_table_with_ransac
+from tiptop.perception.shape_completion import reconstruct_objects_with_recgen
 from tiptop.perception.utils import convert_trimesh_box_to_curobo_cuboid, convert_trimesh_to_curobo_mesh
 from tiptop.perception_wrapper import detect_and_segment, predict_depth_and_grasps
 from tiptop.planning import build_tamp_config, run_planning, save_tiptop_plan, serialize_plan
@@ -158,15 +159,19 @@ def get_demo_container(
 
 
 async def check_server_health(session: aiohttp.ClientSession):
-    """Check health of FoundationStereo and M2T2 server."""
+    """Check health of FoundationStereo, M2T2, and (optionally) RecGen servers."""
     from tiptop.perception.foundation_stereo import check_health_status as fs_check_health_status
     from tiptop.perception.m2t2 import check_health_status as m2t2_check_health_status
+    from tiptop.perception.recgen import check_health_status as recgen_check_health_status
 
     cfg = tiptop_cfg()
-    await asyncio.gather(
+    checks = [
         fs_check_health_status(session, cfg.perception.foundation_stereo.url),
         m2t2_check_health_status(session, cfg.perception.m2t2.url),
-    )
+    ]
+    if cfg.perception.recgen.enabled:
+        checks.append(recgen_check_health_status(session, cfg.perception.recgen.url))
+    await asyncio.gather(*checks)
     _log.info("Server health checks successful!")
 
 
@@ -282,27 +287,38 @@ def create_tamp_environment(
     return env, all_surfaces
 
 
-def process_scene_geometry(
+async def process_scene_geometry(
+    session: aiohttp.ClientSession,
     xyz_map: np.ndarray,
     rgb_map: np.ndarray,
     masks: np.ndarray,
     bboxes: list,
     grasps: dict,
+    rgb_cam: np.ndarray,
+    depth_cam: np.ndarray,
+    intrinsics: np.ndarray,
+    world_from_cam: np.ndarray,
     object_pcds: dict[str, o3d.geometry.PointCloud] | None = None,
 ) -> ProcessedScene:
     """Process perception results into 3D scene geometry for TAMP.
 
     Args:
+        session: aiohttp session (used when RecGen is enabled).
         xyz_map: World-space XYZ coordinates (H, W, 3)
         rgb_map: RGB image (H, W, 3) in 0-255 range
         masks: Segmentation masks from SAM2
         bboxes: Bounding boxes from Gemini
         grasps: Grasp predictions from M2T2
+        rgb_cam: Camera-frame RGB (H, W, 3) uint8 — passed to RecGen.
+        depth_cam: Camera-frame depth (H, W) float meters — passed to RecGen.
+        intrinsics: Camera intrinsics (3, 3) — passed to RecGen.
+        world_from_cam: Camera-to-world transform (4, 4) — used to lift RecGen meshes to world frame.
         object_pcds: Optional pre-computed object point clouds
 
     Returns:
         ProcessedScene with table cuboid, object meshes, pcds, and filtered grasps
     """
+    cfg = tiptop_cfg()
     # Segment table with RANSAC (returns trimesh Box)
     table_trimesh = segment_table_with_ransac(xyz_map, rgb_map, masks)
     table_cuboid = convert_trimesh_box_to_curobo_cuboid(table_trimesh, name="table")
@@ -311,15 +327,32 @@ def process_scene_geometry(
     # For filtering to table plane height
     config = TAMPConfiguration()
     table_top_z = table_trimesh.bounds[1, 2] + config.world_activation_distance + config.coll_sphere_radius * 2
-    object_trimeshes, object_pcds_computed = segment_pointcloud_by_masks(
-        xyz_map,
-        rgb_map,
-        masks,
-        bboxes,
-        table_top_z,
-        return_pcd=True,
-        erode_pixels=tiptop_cfg().perception.mask_erosion_pixels,
-    )
+    if cfg.perception.recgen.enabled:
+        object_trimeshes, object_pcds_computed = await reconstruct_objects_with_recgen(
+            session,
+            cfg.perception.recgen.url,
+            rgb_cam=rgb_cam,
+            depth_cam=depth_cam,
+            masks=masks,
+            bboxes=bboxes,
+            intrinsics=intrinsics,
+            world_from_cam=world_from_cam,
+            xyz_world=xyz_map,
+            rgb_world=rgb_map,
+            max_z=table_top_z,
+            erode_pixels=cfg.perception.mask_erosion_pixels,
+            target_faces=cfg.perception.recgen.target_faces,
+        )
+    else:
+        object_trimeshes, object_pcds_computed = segment_pointcloud_by_masks(
+            xyz_map,
+            rgb_map,
+            masks,
+            bboxes,
+            table_top_z,
+            return_pcd=True,
+            erode_pixels=cfg.perception.mask_erosion_pixels,
+        )
 
     # Use provided point clouds if available, otherwise use computed ones
     if object_pcds is None:
@@ -506,13 +539,17 @@ async def run_perception(
 
     # Run scene geometry processing while saving
     proc_st = time.perf_counter()
-    process_coroutine = asyncio.to_thread(
-        process_scene_geometry,
+    process_coroutine = process_scene_geometry(
+        session,
         depth_results["xyz_map"],
         depth_results["rgb_map"],
         detection_results["masks"],
         detection_results["bboxes"],
         depth_results["grasps"],
+        rgb_cam=rgb,
+        depth_cam=depth_results["depth_map"],
+        intrinsics=frame.intrinsics,
+        world_from_cam=observation.world_from_cam,
     )
     processed_scene, save_result = await asyncio.gather(process_coroutine, save_future)
 
