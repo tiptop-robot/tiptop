@@ -295,8 +295,9 @@ def _filter_pcds_above_z(pcds: dict[str, o3d.geometry.PointCloud], min_z: float)
         pts = np.asarray(pcd.points)
         cols = np.asarray(pcd.colors)
         keep = pts[:, 2] > min_z
-        if keep.sum() < 10:
-            _log.warning(f"Skipping {label}: {int(keep.sum())} points above min_z={min_z:.3f} (need >= 10)")
+        # Need strictly more than nb_neighbors=10 for remove_statistical_outlier to be well-defined.
+        if keep.sum() <= 10:
+            _log.warning(f"Skipping {label}: {int(keep.sum())} points above min_z={min_z:.3f} (need > 10)")
             continue
         out = o3d.geometry.PointCloud()
         out.points = o3d.utility.Vector3dVector(pts[keep])
