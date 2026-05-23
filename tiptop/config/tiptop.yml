@@ -56,6 +56,7 @@ perception:
     mode: "local"
 
   recgen:
+    # Server setup: https://github.com/williamshen-nz/recgen
     url: "http://localhost:7324"
     # Use RecGen for object shape completion instead of convex hulls.
     # Typically set to false in production — RecGen is significantly slower than convex hulls.

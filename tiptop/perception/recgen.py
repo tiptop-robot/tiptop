@@ -27,20 +27,32 @@ async def generate_shape_async(
 ) -> dict:
     """Run RecGen single-view reconstruction for one object via HTTP.
 
-    Returns the unpacked msgpack payload with the following keys:
-        - "vertices":      (N, 3) float32     mesh vertices in the camera frame
-        - "faces":         (M, 3) int32       triangle indices
-        - "vertex_colors": (N, 4) uint8       per-vertex RGBA (optional, may be absent)
-        - "pose_matrix":   (4, 4) float64     object-to-camera pose
-        - "pose_quat":     (7,)   float64     same pose as [tx, ty, tz, qx, qy, qz, qw]
-
     If target_faces is provided, the server-side quadric edge-collapse decimator
     runs after inference and the response carries the decimated mesh.
+
+    Args:
+        session: aiohttp session for the POST.
+        server_url: RecGen server base URL.
+        rgb: Camera-frame RGB image.
+        depth: Camera-frame depth (meters).
+        mask: Object mask (non-zero = object).
+        intrinsics: Camera intrinsics.
+        seed: RecGen seed for reproducible reconstruction.
+        target_faces: If set, mesh is server-side decimated to this many faces.
+        timeout: Per-request timeout in seconds.
+
+    Returns:
+        Dict with keys:
+            "vertices":      (N, 3) float32 — mesh vertices in the camera frame.
+            "faces":         (M, 3) int32 — triangle indices.
+            "vertex_colors": (N, 4) uint8 — per-vertex RGBA (optional, may be absent).
+            "pose_matrix":   (4, 4) float64 — object-to-camera pose.
+            "pose_quat":     (7,) float64 — same pose as [tx, ty, tz, qx, qy, qz, qw].
     """
     payload = {
         "rgb": rgb,
         "depth": depth,
-        "mask": (mask > 0).astype(np.uint8),
+        "mask": mask,
         "intrinsics": intrinsics.astype(np.float64),
         "seed": int(seed),
     }

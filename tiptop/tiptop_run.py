@@ -288,25 +288,6 @@ def create_tamp_environment(
     return env, all_surfaces
 
 
-def _filter_pcds_above_z(pcds: dict[str, o3d.geometry.PointCloud], min_z: float) -> dict[str, o3d.geometry.PointCloud]:
-    """Drop z <= min_z points and apply the same outlier removal as segment_pointcloud_by_masks."""
-    filtered: dict[str, o3d.geometry.PointCloud] = {}
-    for label, pcd in pcds.items():
-        pts = np.asarray(pcd.points)
-        cols = np.asarray(pcd.colors)
-        keep = pts[:, 2] > min_z
-        # Need strictly more than nb_neighbors=10 for remove_statistical_outlier to be well-defined.
-        if keep.sum() <= 10:
-            _log.warning(f"Skipping {label}: {int(keep.sum())} points above min_z={min_z:.3f} (need > 10)")
-            continue
-        out = o3d.geometry.PointCloud()
-        out.points = o3d.utility.Vector3dVector(pts[keep])
-        out.colors = o3d.utility.Vector3dVector(cols[keep])
-        out, _ = out.remove_statistical_outlier(nb_neighbors=10, std_ratio=2.0)
-        filtered[label] = out
-    return filtered
-
-
 def process_scene_geometry(
     xyz_map: np.ndarray,
     rgb_map: np.ndarray,
@@ -325,8 +306,8 @@ def process_scene_geometry(
         masks: Segmentation masks from SAM2
         bboxes: Bounding boxes from Gemini
         grasps: Grasp predictions from M2T2
-        recgen_meshes: Per-object meshes from RecGen (world frame). When provided, replaces the convex-hull path.
-        recgen_pcds: Per-object masked pcds from RecGen, paired with recgen_meshes.
+        recgen_meshes: Per-object meshes in world frame (e.g. from RecGen). When provided, replaces the convex-hull path.
+        recgen_pcds: Per-object masked depth pcds paired with recgen_meshes (not yet z-filtered against the table).
         object_pcds: Optional pre-computed object point clouds
 
     Returns:
@@ -342,11 +323,23 @@ def process_scene_geometry(
     table_top_z = table_trimesh.bounds[1, 2] + config.world_activation_distance + config.coll_sphere_radius * 2
     if recgen_meshes is not None:
         assert recgen_pcds is not None, "recgen_pcds must be provided alongside recgen_meshes"
-        # RecGen returns un-z-filtered pcds; apply the same table-relative filter
-        # the convex-hull path uses before grasp linking.
-        object_pcds_computed = _filter_pcds_above_z(recgen_pcds, table_top_z)
-        # _filter_pcds_above_z can drop labels (no points above table); keep the mesh dict in sync
-        # so downstream loops over object_trimeshes don't KeyError on the pcd dict.
+        # Apply the same table-relative z-filter + outlier removal the convex-hull path
+        # uses. Drop objects with too few above-table points (need > nb_neighbors=10
+        # for remove_statistical_outlier). Keep object_trimeshes in sync with the
+        # surviving labels so downstream loops don't KeyError.
+        object_pcds_computed = {}
+        for label, pcd in recgen_pcds.items():
+            pts = np.asarray(pcd.points)
+            cols = np.asarray(pcd.colors)
+            keep = pts[:, 2] > table_top_z
+            if keep.sum() <= 10:
+                _log.warning(f"Skipping {label}: {int(keep.sum())} points above table (need > 10)")
+                continue
+            out = o3d.geometry.PointCloud()
+            out.points = o3d.utility.Vector3dVector(pts[keep])
+            out.colors = o3d.utility.Vector3dVector(cols[keep])
+            out, _ = out.remove_statistical_outlier(nb_neighbors=10, std_ratio=2.0)
+            object_pcds_computed[label] = out
         object_trimeshes = {label: mesh for label, mesh in recgen_meshes.items() if label in object_pcds_computed}
     else:
         object_trimeshes, object_pcds_computed = segment_pointcloud_by_masks(
@@ -542,8 +535,7 @@ async def run_perception(
             ),
         )
 
-    # Run RecGen up-front (when enabled) so the HTTP awaits happen on the event loop
-    # while process_scene_geometry stays sync and runs in a thread below.
+    # Reconstruct objects with RecGen (when enabled).
     recgen_meshes: dict[str, trimesh.Trimesh] | None = None
     recgen_pcds: dict[str, o3d.geometry.PointCloud] | None = None
     cfg = tiptop_cfg()
