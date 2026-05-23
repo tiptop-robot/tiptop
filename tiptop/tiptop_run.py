@@ -340,6 +340,7 @@ async def process_scene_geometry(
             xyz_world=xyz_map,
             rgb_world=rgb_map,
             max_z=table_top_z,
+            erode_pixels=cfg.perception.mask_erosion_pixels,
             target_faces=cfg.perception.recgen.target_faces,
         )
     else:

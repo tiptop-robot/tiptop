@@ -9,6 +9,7 @@ downstream grasp-object association.
 import logging
 
 import aiohttp
+import cv2
 import numpy as np
 import open3d as o3d
 import trimesh
@@ -31,6 +32,7 @@ async def reconstruct_objects_with_recgen(
     xyz_world: Float[np.ndarray, "h w 3"],
     rgb_world: Float[np.ndarray, "h w 3"],
     max_z: float,
+    erode_pixels: int = 0,
     seed: int = 42,
     target_faces: int | None = None,
 ) -> tuple[dict[str, trimesh.Trimesh], dict[str, o3d.geometry.PointCloud]]:
@@ -40,8 +42,9 @@ async def reconstruct_objects_with_recgen(
     via ``world_from_cam``. The point cloud is built from ``xyz_world`` (the partial
     observation), matching the existing grasp-linking pipeline.
 
-    Unlike the convex-hull path, masks are not eroded here — erosion can fully
-    erase thin objects, and RecGen handles edge noise on its own.
+    Mask erosion mirrors the convex-hull path: if erosion leaves too few points
+    (e.g. for thin objects), fall back to the un-eroded mask. The same mask is
+    used for the RecGen request and the pcd extraction.
 
     Returns ``(object_meshes, object_pcds)`` keyed by ``bbox["label"]``.
     """
@@ -57,13 +60,28 @@ async def reconstruct_objects_with_recgen(
     for mask_2d, bbox in zip(masks_2d, bboxes):
         label = bbox["label"]
 
-        # Validate the masked depth observation before calling RecGen — if there's nothing
-        # to anchor grasps to, log and skip rather than aborting the whole pipeline.
+        # Erode to handle depth edge noise; fall back to the un-eroded mask if too
+        # few valid points remain (e.g. thin objects like knives). Mirrors the
+        # convex-hull path in segment_pointcloud_by_masks.
+        original_mask = mask_2d
+        if erode_pixels > 0:
+            kernel = np.ones((erode_pixels * 2 + 1, erode_pixels * 2 + 1), np.uint8)
+            mask_2d = cv2.erode(mask_2d.astype(np.uint8), kernel, iterations=1).astype(bool)
+
         xyz_obj = xyz_world[mask_2d]
         rgb_obj = rgb_world[mask_2d]
         valid = ~np.isnan(xyz_obj).any(axis=1)
         xyz_obj = xyz_obj[valid]
         rgb_obj = rgb_obj[valid]
+
+        if len(xyz_obj) < 10 and erode_pixels > 0:
+            _log.warning(f"{label}: too few points ({len(xyz_obj)}) after erosion; retrying with erode_pixels=0")
+            mask_2d = original_mask
+            xyz_obj = xyz_world[mask_2d]
+            rgb_obj = rgb_world[mask_2d]
+            valid = ~np.isnan(xyz_obj).any(axis=1)
+            xyz_obj = xyz_obj[valid]
+            rgb_obj = rgb_obj[valid]
 
         z_mask = xyz_obj[:, 2] > max_z
         if not z_mask.any():
