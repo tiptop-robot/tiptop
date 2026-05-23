@@ -13,6 +13,7 @@ import aiohttp
 import numpy as np
 import open3d as o3d
 import rerun as rr
+import trimesh
 import tyro
 from curobo.geom.types import Cuboid, Mesh
 from curobo.types.base import TensorDeviceType
@@ -287,32 +288,44 @@ def create_tamp_environment(
     return env, all_surfaces
 
 
-async def process_scene_geometry(
-    session: aiohttp.ClientSession,
+def _filter_pcds_above_z(pcds: dict[str, o3d.geometry.PointCloud], min_z: float) -> dict[str, o3d.geometry.PointCloud]:
+    """Drop z <= min_z points and apply the same outlier removal as segment_pointcloud_by_masks."""
+    filtered: dict[str, o3d.geometry.PointCloud] = {}
+    for label, pcd in pcds.items():
+        pts = np.asarray(pcd.points)
+        cols = np.asarray(pcd.colors)
+        keep = pts[:, 2] > min_z
+        if keep.sum() < 10:
+            _log.warning(f"Skipping {label}: {int(keep.sum())} points above min_z={min_z:.3f} (need >= 10)")
+            continue
+        out = o3d.geometry.PointCloud()
+        out.points = o3d.utility.Vector3dVector(pts[keep])
+        out.colors = o3d.utility.Vector3dVector(cols[keep])
+        out, _ = out.remove_statistical_outlier(nb_neighbors=10, std_ratio=2.0)
+        filtered[label] = out
+    return filtered
+
+
+def process_scene_geometry(
     xyz_map: np.ndarray,
     rgb_map: np.ndarray,
     masks: np.ndarray,
     bboxes: list,
     grasps: dict,
-    rgb_cam: np.ndarray,
-    depth_cam: np.ndarray,
-    intrinsics: np.ndarray,
-    world_from_cam: np.ndarray,
+    recgen_meshes: dict[str, trimesh.Trimesh] | None = None,
+    recgen_pcds: dict[str, o3d.geometry.PointCloud] | None = None,
     object_pcds: dict[str, o3d.geometry.PointCloud] | None = None,
 ) -> ProcessedScene:
     """Process perception results into 3D scene geometry for TAMP.
 
     Args:
-        session: aiohttp session (used when RecGen is enabled).
         xyz_map: World-space XYZ coordinates (H, W, 3)
         rgb_map: RGB image (H, W, 3) in 0-1 range
         masks: Segmentation masks from SAM2
         bboxes: Bounding boxes from Gemini
         grasps: Grasp predictions from M2T2
-        rgb_cam: Camera-frame RGB (H, W, 3) uint8 — passed to RecGen.
-        depth_cam: Camera-frame depth (H, W) float meters — passed to RecGen.
-        intrinsics: Camera intrinsics (3, 3) — passed to RecGen.
-        world_from_cam: Camera-to-world transform (4, 4) — used to lift RecGen meshes to world frame.
+        recgen_meshes: Per-object meshes from RecGen (world frame). When provided, replaces the convex-hull path.
+        recgen_pcds: Per-object masked pcds from RecGen, paired with ``recgen_meshes``.
         object_pcds: Optional pre-computed object point clouds
 
     Returns:
@@ -327,22 +340,11 @@ async def process_scene_geometry(
     # For filtering to table plane height
     config = TAMPConfiguration()
     table_top_z = table_trimesh.bounds[1, 2] + config.world_activation_distance + config.coll_sphere_radius * 2
-    if cfg.perception.recgen.enabled:
-        object_trimeshes, object_pcds_computed = await reconstruct_objects_with_recgen(
-            session,
-            cfg.perception.recgen.url,
-            rgb_cam=rgb_cam,
-            depth_cam=depth_cam,
-            masks=masks,
-            bboxes=bboxes,
-            intrinsics=intrinsics,
-            world_from_cam=world_from_cam,
-            xyz_world=xyz_map,
-            rgb_world=rgb_map,
-            max_z=table_top_z,
-            erode_pixels=cfg.perception.mask_erosion_pixels,
-            target_faces=cfg.perception.recgen.target_faces,
-        )
+    if recgen_meshes is not None:
+        object_trimeshes = recgen_meshes
+        # RecGen returns un-z-filtered pcds; apply the same table-relative filter
+        # the convex-hull path uses before grasp linking.
+        object_pcds_computed = _filter_pcds_above_z(recgen_pcds, table_top_z)
     else:
         object_trimeshes, object_pcds_computed = segment_pointcloud_by_masks(
             xyz_map,
@@ -537,19 +539,37 @@ async def run_perception(
             ),
         )
 
+    # Run RecGen up-front so process_scene_geometry can stay sync and run in a thread.
+    recgen_meshes: dict[str, trimesh.Trimesh] | None = None
+    recgen_pcds: dict[str, o3d.geometry.PointCloud] | None = None
+    cfg = tiptop_cfg()
+    if cfg.perception.recgen.enabled:
+        recgen_meshes, recgen_pcds = await reconstruct_objects_with_recgen(
+            session,
+            cfg.perception.recgen.url,
+            rgb_cam=rgb,
+            depth_cam=depth_results["depth_map"],
+            masks=detection_results["masks"],
+            bboxes=detection_results["bboxes"],
+            intrinsics=frame.intrinsics,
+            world_from_cam=observation.world_from_cam,
+            xyz_world=depth_results["xyz_map"],
+            rgb_world=depth_results["rgb_map"],
+            erode_pixels=cfg.perception.mask_erosion_pixels,
+            target_faces=cfg.perception.recgen.target_faces,
+        )
+
     # Run scene geometry processing while saving
     proc_st = time.perf_counter()
-    process_coroutine = process_scene_geometry(
-        session,
+    process_coroutine = asyncio.to_thread(
+        process_scene_geometry,
         depth_results["xyz_map"],
         depth_results["rgb_map"],
         detection_results["masks"],
         detection_results["bboxes"],
         depth_results["grasps"],
-        rgb_cam=rgb,
-        depth_cam=depth_results["depth_map"],
-        intrinsics=frame.intrinsics,
-        world_from_cam=observation.world_from_cam,
+        recgen_meshes=recgen_meshes,
+        recgen_pcds=recgen_pcds,
     )
     processed_scene, save_result = await asyncio.gather(process_coroutine, save_future)
 
@@ -636,7 +656,9 @@ async def async_entrypoint(container: _DemoContainer, config: TAMPConfiguration,
                             all_surfaces=all_surfaces,
                             experiment_dir=save_dir / "cutamp",
                         )
-                        _log.info(f"Perception and cuTAMP planning took: {perception_duration + planning_duration:.2f}s")
+                        _log.info(
+                            f"Perception and cuTAMP planning took: {perception_duration + planning_duration:.2f}s"
+                        )
                         if cutamp_plan is not None:
                             plan_path = save_dir / "tiptop_plan.json"
                             save_tiptop_plan(serialize_plan(cutamp_plan, observation.q_init), plan_path)

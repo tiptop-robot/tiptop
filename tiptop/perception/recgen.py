@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 
 import aiohttp
 import msgpack
@@ -26,20 +25,23 @@ async def generate_shape_async(
     target_faces: int | None = None,
     timeout: float = 600.0,
 ) -> dict:
-    """Run RecGen single-view reconstruction on one object via HTTP.
+    """Run RecGen single-view reconstruction for one object via HTTP.
 
-    Returns the unpacked msgpack payload with keys ``vertices``, ``faces``,
-    ``pose_matrix``, ``pose_quat``, and optionally ``vertex_colors``. The mesh
-    is expressed in the camera frame.
+    Returns the unpacked msgpack payload with the following keys:
+        - "vertices":      (N, 3) float32     mesh vertices in the camera frame
+        - "faces":         (M, 3) int32       triangle indices
+        - "vertex_colors": (N, 4) uint8       per-vertex RGBA (optional, may be absent)
+        - "pose_matrix":   (4, 4) float64     object-to-camera pose
+        - "pose_quat":     (7,)   float64     same pose as [tx, ty, tz, qx, qy, qz, qw]
 
-    If ``target_faces`` is provided, the server-side quadric edge-collapse
-    decimator runs after inference and the response carries the decimated mesh.
+    If target_faces is provided, the server-side quadric edge-collapse decimator
+    runs after inference and the response carries the decimated mesh.
     """
     payload = {
-        "rgb": np.ascontiguousarray(rgb),
-        "depth": np.ascontiguousarray(depth),
-        "mask": np.ascontiguousarray((mask > 0).astype(np.uint8)),
-        "intrinsics": np.ascontiguousarray(intrinsics, dtype=np.float64),
+        "rgb": rgb,
+        "depth": depth,
+        "mask": (mask > 0).astype(np.uint8),
+        "intrinsics": intrinsics.astype(np.float64),
         "seed": int(seed),
     }
     if target_faces is not None:
@@ -47,7 +49,6 @@ async def generate_shape_async(
     body = msgpack.packb(payload, use_bin_type=True)
     endpoint = os.path.join(server_url.rstrip("/"), "generate")
 
-    start_time = time.perf_counter()
     _log.debug(f"Sending inference request to RecGen server at {endpoint}")
     async with session.post(
         endpoint,
@@ -56,10 +57,7 @@ async def generate_shape_async(
         timeout=aiohttp.ClientTimeout(total=timeout),
     ) as response:
         response.raise_for_status()
-        result = msgpack.unpackb(await response.read(), raw=False)
-    duration = time.perf_counter() - start_time
-    _log.info(f"RecGen inference time={duration:.2f}s")
-    return result
+        return msgpack.unpackb(await response.read(), raw=False)
 
 
 async def check_health_status(session: aiohttp.ClientSession, server_url: str):

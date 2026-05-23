@@ -1,12 +1,7 @@
-"""Per-object shape completion via RecGen.
-
-Drop-in replacement for the convex-hull path in ``segmentation.segment_pointcloud_by_masks``:
-calls RecGen per mask to get a textured mesh in the camera frame, transforms it into the
-world frame, and builds a masked point cloud (from the partial depth observation) for
-downstream grasp-object association.
-"""
+"""Per-object shape completion via RecGen."""
 
 import logging
+import time
 
 import aiohttp
 import cv2
@@ -31,22 +26,17 @@ async def reconstruct_objects_with_recgen(
     world_from_cam: Float[np.ndarray, "4 4"],
     xyz_world: Float[np.ndarray, "h w 3"],
     rgb_world: Float[np.ndarray, "h w 3"],
-    max_z: float,
-    erode_pixels: int = 0,
+    erode_pixels: int,
     seed: int = 42,
     target_faces: int | None = None,
 ) -> tuple[dict[str, trimesh.Trimesh], dict[str, o3d.geometry.PointCloud]]:
     """Run RecGen on each object mask sequentially.
 
     The mesh is reconstructed in the camera frame and transformed to world frame
-    via ``world_from_cam``. The point cloud is built from ``xyz_world`` (the partial
-    observation), matching the existing grasp-linking pipeline.
+    via world_from_cam. The point cloud is built from xyz_world (the partial depth
+    observation); the caller is responsible for any table-relative filtering.
 
-    Mask erosion mirrors the convex-hull path: if erosion leaves too few points
-    (e.g. for thin objects), fall back to the un-eroded mask. The same mask is
-    used for the RecGen request and the pcd extraction.
-
-    Returns ``(object_meshes, object_pcds)`` keyed by ``bbox["label"]``.
+    Returns (object_meshes, object_pcds) keyed by bbox["label"].
     """
     if masks.ndim == 4 and masks.shape[1] == 1:
         masks = masks[:, 0]
@@ -60,9 +50,8 @@ async def reconstruct_objects_with_recgen(
     for mask_2d, bbox in zip(masks_2d, bboxes):
         label = bbox["label"]
 
-        # Erode to handle depth edge noise; fall back to the un-eroded mask if too
-        # few valid points remain (e.g. thin objects like knives). Mirrors the
-        # convex-hull path in segment_pointcloud_by_masks.
+        # Erode to handle depth edge noise; fall back to the un-eroded mask if too few
+        # valid points remain (e.g. thin objects like knives).
         original_mask = mask_2d
         if erode_pixels > 0:
             kernel = np.ones((erode_pixels * 2 + 1, erode_pixels * 2 + 1), np.uint8)
@@ -83,13 +72,7 @@ async def reconstruct_objects_with_recgen(
             xyz_obj = xyz_obj[valid]
             rgb_obj = rgb_obj[valid]
 
-        z_mask = xyz_obj[:, 2] > max_z
-        if not z_mask.any():
-            _log.warning(f"Skipping {label}: no points above max_z={max_z:.3f}")
-            continue
-        xyz_obj = xyz_obj[z_mask]
-        rgb_obj = rgb_obj[z_mask]
-
+        t0 = time.perf_counter()
         payload = await generate_shape_async(
             session,
             server_url,
@@ -100,6 +83,7 @@ async def reconstruct_objects_with_recgen(
             seed=seed,
             target_faces=target_faces,
         )
+        recgen_s = time.perf_counter() - t0
 
         verts_cam = np.asarray(payload["vertices"], dtype=np.float64)
         verts_hom = np.c_[verts_cam, np.ones(len(verts_cam))]
@@ -119,11 +103,11 @@ async def reconstruct_objects_with_recgen(
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(xyz_obj)
         pcd.colors = o3d.utility.Vector3dVector(rgb_obj)
-        pcd, _ = pcd.remove_statistical_outlier(nb_neighbors=10, std_ratio=2.0)
         object_pcds[label] = pcd
 
         _log.info(
-            f"RecGen {label}: {len(mesh.vertices)} verts, {len(mesh.faces)} faces; pcd={len(pcd.points)} pts"
+            f"RecGen {label}: {recgen_s:.2f}s, {len(mesh.vertices)} verts, "
+            f"{len(mesh.faces)} faces; pcd={len(pcd.points)} pts"
         )
 
     return object_meshes, object_pcds

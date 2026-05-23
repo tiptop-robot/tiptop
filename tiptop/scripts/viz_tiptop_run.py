@@ -2,25 +2,26 @@ import json
 import logging
 import re
 from pathlib import Path
+
 import cv2
 import dill
-import open3d as o3d
 import numpy as np
+import open3d as o3d
 import rerun as rr
 import torch
-from PIL import Image
-from omegaconf import OmegaConf
-
 from curobo.types.base import TensorDeviceType
 from cutamp.envs.utils import TAMPEnvironment
 from cutamp.robots import load_robot_container
 from cutamp.robots.utils import RerunRobot
 from cutamp.utils.common import pose_list_to_mat4x4
-from cutamp.utils.rerun_utils import log_curobo_pose_to_rerun, curobo_to_rerun, log_curobo_mesh_to_rerun
+from cutamp.utils.rerun_utils import curobo_to_rerun, log_curobo_mesh_to_rerun, log_curobo_pose_to_rerun
+from omegaconf import OmegaConf
+from PIL import Image
+
 from tiptop.perception.m2t2 import m2t2_to_tiptop_transform
 from tiptop.planning import load_tiptop_plan
 from tiptop.utils import get_robot_rerun, setup_logging
-from tiptop.viz_utils import get_heatmap, get_gripper_mesh
+from tiptop.viz_utils import get_gripper_mesh, get_heatmap
 
 _log = logging.getLogger(__name__)
 
@@ -96,7 +97,8 @@ def viz_tiptop_plan(tiptop_plan: dict, cutamp_env: TAMPEnvironment, robot_rr: Re
 
         elif action_dict["type"] == "gripper":
             if action_dict["action"] == "close":
-                # Parse object name from label e.g. "Pick(crackers_in_wrapper, grasp1, q1)"
+                # Parse object name from label e.g. "Pick(crackers_in_wrapper, grasp1, q1)".
+                # [^,]+ rather than \w+ so labels with apostrophes like "Rubik's_cube" aren't truncated.
                 match = re.match(r"\w+\(([^,]+)", action_dict["label"])
                 if match is None:
                     raise ValueError(f"Could not parse object name from label: {action_dict['label']}")
