@@ -97,7 +97,7 @@ def viz_tiptop_plan(tiptop_plan: dict, cutamp_env: TAMPEnvironment, robot_rr: Re
         elif action_dict["type"] == "gripper":
             if action_dict["action"] == "close":
                 # Parse object name from label e.g. "Pick(crackers_in_wrapper, grasp1, q1)"
-                match = re.match(r"\w+\((\w+)", action_dict["label"])
+                match = re.match(r"\w+\(([^,]+)", action_dict["label"])
                 if match is None:
                     raise ValueError(f"Could not parse object name from label: {action_dict['label']}")
                 grasped_obj = match.group(1)
