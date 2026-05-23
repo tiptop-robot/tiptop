@@ -356,6 +356,9 @@ def process_scene_geometry(
     if object_pcds is None:
         object_pcds = object_pcds_computed
 
+    if not object_pcds:
+        raise ValueError("No objects with sufficient point cloud data; cannot associate grasps.")
+
     # Associate grasps with objects by checking contact point proximity
     # Build a single KDTree from all object points with label tracking
     obj_labels = list(object_pcds.keys())
