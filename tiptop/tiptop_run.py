@@ -325,13 +325,12 @@ def process_scene_geometry(
         bboxes: Bounding boxes from Gemini
         grasps: Grasp predictions from M2T2
         recgen_meshes: Per-object meshes from RecGen (world frame). When provided, replaces the convex-hull path.
-        recgen_pcds: Per-object masked pcds from RecGen, paired with ``recgen_meshes``.
+        recgen_pcds: Per-object masked pcds from RecGen, paired with recgen_meshes.
         object_pcds: Optional pre-computed object point clouds
 
     Returns:
         ProcessedScene with table cuboid, object meshes, pcds, and filtered grasps
     """
-    cfg = tiptop_cfg()
     # Segment table with RANSAC (returns trimesh Box)
     table_trimesh = segment_table_with_ransac(xyz_map, rgb_map, masks)
     table_cuboid = convert_trimesh_box_to_curobo_cuboid(table_trimesh, name="table")
@@ -356,7 +355,7 @@ def process_scene_geometry(
             bboxes,
             table_top_z,
             return_pcd=True,
-            erode_pixels=cfg.perception.mask_erosion_pixels,
+            erode_pixels=tiptop_cfg().perception.mask_erosion_pixels,
         )
 
     # Use provided point clouds if available, otherwise use computed ones
@@ -542,10 +541,8 @@ async def run_perception(
             ),
         )
 
-    # When enabled, RecGen replaces the convex-hull shape completion used by
-    # segment_pointcloud_by_masks with a single-view 3D reconstruction per object.
-    # Called here (rather than inside process_scene_geometry) so the HTTP awaits
-    # happen async and the remaining CPU work can run in a thread below.
+    # Run RecGen up-front (when enabled) so the HTTP awaits happen on the event loop
+    # while process_scene_geometry stays sync and runs in a thread below.
     recgen_meshes: dict[str, trimesh.Trimesh] | None = None
     recgen_pcds: dict[str, o3d.geometry.PointCloud] | None = None
     cfg = tiptop_cfg()
