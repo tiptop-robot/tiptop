@@ -166,13 +166,13 @@ async def check_server_health(session: aiohttp.ClientSession):
     from tiptop.perception.recgen import check_health_status as recgen_check_health_status
 
     cfg = tiptop_cfg()
-    checks = [
+    health_checks = [
         fs_check_health_status(session, cfg.perception.foundation_stereo.url),
         m2t2_check_health_status(session, cfg.perception.m2t2.url),
     ]
     if cfg.perception.recgen.enabled:
-        checks.append(recgen_check_health_status(session, cfg.perception.recgen.url))
-    await asyncio.gather(*checks)
+        health_checks.append(recgen_check_health_status(session, cfg.perception.recgen.url))
+    await asyncio.gather(*health_checks)
     _log.info("Server health checks successful!")
 
 
@@ -539,7 +539,10 @@ async def run_perception(
             ),
         )
 
-    # Run RecGen up-front so process_scene_geometry can stay sync and run in a thread.
+    # When enabled, RecGen replaces the convex-hull shape completion used by
+    # segment_pointcloud_by_masks with a single-view 3D reconstruction per object.
+    # Called here (rather than inside process_scene_geometry) so the HTTP awaits
+    # happen async and the remaining CPU work can run in a thread below.
     recgen_meshes: dict[str, trimesh.Trimesh] | None = None
     recgen_pcds: dict[str, o3d.geometry.PointCloud] | None = None
     cfg = tiptop_cfg()
