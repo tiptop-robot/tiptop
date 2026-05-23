@@ -9,7 +9,6 @@ downstream grasp-object association.
 import logging
 
 import aiohttp
-import cv2
 import numpy as np
 import open3d as o3d
 import trimesh
@@ -32,7 +31,6 @@ async def reconstruct_objects_with_recgen(
     xyz_world: Float[np.ndarray, "h w 3"],
     rgb_world: Float[np.ndarray, "h w 3"],
     max_z: float,
-    erode_pixels: int = 0,
     seed: int = 42,
     target_faces: int | None = None,
 ) -> tuple[dict[str, trimesh.Trimesh], dict[str, o3d.geometry.PointCloud]]:
@@ -41,6 +39,9 @@ async def reconstruct_objects_with_recgen(
     The mesh is reconstructed in the camera frame and transformed to world frame
     via ``world_from_cam``. The point cloud is built from ``xyz_world`` (the partial
     observation), matching the existing grasp-linking pipeline.
+
+    Unlike the convex-hull path, masks are not eroded here — erosion can fully
+    erase thin objects, and RecGen handles edge noise on its own.
 
     Returns ``(object_meshes, object_pcds)`` keyed by ``bbox["label"]``.
     """
@@ -56,9 +57,20 @@ async def reconstruct_objects_with_recgen(
     for mask_2d, bbox in zip(masks_2d, bboxes):
         label = bbox["label"]
 
-        if erode_pixels > 0:
-            kernel = np.ones((erode_pixels * 2 + 1, erode_pixels * 2 + 1), np.uint8)
-            mask_2d = cv2.erode(mask_2d.astype(np.uint8), kernel, iterations=1).astype(bool)
+        # Validate the masked depth observation before calling RecGen — if there's nothing
+        # to anchor grasps to, log and skip rather than aborting the whole pipeline.
+        xyz_obj = xyz_world[mask_2d]
+        rgb_obj = rgb_world[mask_2d]
+        valid = ~np.isnan(xyz_obj).any(axis=1)
+        xyz_obj = xyz_obj[valid]
+        rgb_obj = rgb_obj[valid]
+
+        z_mask = xyz_obj[:, 2] > max_z
+        if not z_mask.any():
+            _log.warning(f"Skipping {label}: no points above max_z={max_z:.3f}")
+            continue
+        xyz_obj = xyz_obj[z_mask]
+        rgb_obj = rgb_obj[z_mask]
 
         payload = await generate_shape_async(
             session,
@@ -85,18 +97,6 @@ async def reconstruct_objects_with_recgen(
         mesh = trimesh.Trimesh(**mesh_kwargs)
         mesh.metadata = {"name": label}
         object_meshes[label] = mesh
-
-        xyz_obj = xyz_world[mask_2d]
-        rgb_obj = rgb_world[mask_2d]
-        valid = ~np.isnan(xyz_obj).any(axis=1)
-        xyz_obj = xyz_obj[valid]
-        rgb_obj = rgb_obj[valid]
-
-        z_mask = xyz_obj[:, 2] > max_z
-        if not z_mask.any():
-            raise ValueError(f"Object {label}: no points above max_z={max_z:.3f}")
-        xyz_obj = xyz_obj[z_mask]
-        rgb_obj = rgb_obj[z_mask]
 
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(xyz_obj)

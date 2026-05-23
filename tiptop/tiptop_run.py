@@ -305,7 +305,7 @@ async def process_scene_geometry(
     Args:
         session: aiohttp session (used when RecGen is enabled).
         xyz_map: World-space XYZ coordinates (H, W, 3)
-        rgb_map: RGB image (H, W, 3) in 0-255 range
+        rgb_map: RGB image (H, W, 3) in 0-1 range
         masks: Segmentation masks from SAM2
         bboxes: Bounding boxes from Gemini
         grasps: Grasp predictions from M2T2
@@ -340,7 +340,6 @@ async def process_scene_geometry(
             xyz_world=xyz_map,
             rgb_world=rgb_map,
             max_z=table_top_z,
-            erode_pixels=cfg.perception.mask_erosion_pixels,
             target_faces=cfg.perception.recgen.target_faces,
         )
     else:
