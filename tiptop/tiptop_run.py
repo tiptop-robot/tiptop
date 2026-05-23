@@ -322,7 +322,8 @@ def process_scene_geometry(
     config = TAMPConfiguration()
     table_top_z = table_trimesh.bounds[1, 2] + config.world_activation_distance + config.coll_sphere_radius * 2
     if recgen_meshes is not None:
-        assert recgen_pcds is not None, "recgen_pcds must be provided alongside recgen_meshes"
+        if recgen_pcds is None:
+            raise ValueError("recgen_pcds must be provided alongside recgen_meshes")
         # Apply the same table-relative z-filter + outlier removal the convex-hull path
         # uses. Drop objects with too few above-table points (need > nb_neighbors=10
         # for remove_statistical_outlier). Keep object_trimeshes in sync with the
