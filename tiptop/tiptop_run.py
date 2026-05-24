@@ -167,30 +167,25 @@ def get_demo_container(
     )
 
 
-async def check_server_health(session: aiohttp.ClientSession | None = None):
+async def check_server_health():
     """Check health of FoundationStereo, M2T2, and (optionally) RecGen servers.
 
-    If no session is given, a temporary one is created and closed, so this can be
-    run standalone via ``asyncio.run(check_server_health())``.
+    Owns its own session, so it can be run standalone via asyncio.run(check_server_health()).
     """
-    if session is None:
-        connector = aiohttp.TCPConnector(limit=10, force_close=True)
-        async with aiohttp.ClientSession(connector=connector) as owned_session:
-            await check_server_health(owned_session)
-        return
-
     from tiptop.perception.foundation_stereo import check_health_status as fs_check_health_status
     from tiptop.perception.m2t2 import check_health_status as m2t2_check_health_status
     from tiptop.perception.recgen import check_health_status as recgen_check_health_status
 
     cfg = tiptop_cfg()
-    health_checks = [
-        fs_check_health_status(session, cfg.perception.foundation_stereo.url),
-        m2t2_check_health_status(session, cfg.perception.m2t2.url),
-    ]
-    if cfg.perception.recgen.enabled:
-        health_checks.append(recgen_check_health_status(session, cfg.perception.recgen.url))
-    await asyncio.gather(*health_checks)
+    connector = aiohttp.TCPConnector(limit=10, force_close=True)
+    async with aiohttp.ClientSession(connector=connector) as session:
+        health_checks = [
+            fs_check_health_status(session, cfg.perception.foundation_stereo.url),
+            m2t2_check_health_status(session, cfg.perception.m2t2.url),
+        ]
+        if cfg.perception.recgen.enabled:
+            health_checks.append(recgen_check_health_status(session, cfg.perception.recgen.url))
+        await asyncio.gather(*health_checks)
     _log.info("Server health checks successful!")
 
 
@@ -615,7 +610,7 @@ async def async_entrypoint(container: _DemoContainer, config: TAMPConfiguration,
         while True:
             try:
                 _log.debug(f"Preparing TiPToP for next run...")
-                await check_server_health(session)
+                await check_server_health()
 
                 # Go to capture pose and ask user for instruction
                 _log.debug("Moving robot to capture joint positions")
