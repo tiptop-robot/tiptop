@@ -19,10 +19,8 @@ def masked_object_points(
     label: str,
 ) -> tuple[Bool[np.ndarray, "h w"], np.ndarray, np.ndarray] | None:
     """
-    Erode an object mask and gather its valid (non-NaN) point cloud.
-
-    Erosion suppresses depth edge noise; if it leaves too few points (e.g. thin objects like knives), falls back to the
-    un-eroded mask.
+    Erode an object mask and gather its valid (non-NaN) point cloud. Erosion suppresses depth edge noise; if it leaves
+    too few points (e.g. thin objects like knives), falls back to the un-eroded mask.
 
     Args:
         mask: Object segmentation mask (non-zero = object).
@@ -42,20 +40,21 @@ def masked_object_points(
 
     xyz = xyz_world[eroded]
     rgb = rgb_world[eroded]
-    finite = ~np.isnan(xyz).any(axis=1)
+    valid = ~np.isnan(xyz).any(axis=1)
+    num_valid = valid.sum()
 
-    if int(finite.sum()) < 10 and erode_pixels > 0:
+    if num_valid < 10 and erode_pixels > 0:
         _log.warning(f"{label}: too few points after erosion; retrying with erode_pixels=0")
         eroded = mask
         xyz = xyz_world[eroded]
         rgb = rgb_world[eroded]
-        finite = ~np.isnan(xyz).any(axis=1)
+        valid = ~np.isnan(xyz).any(axis=1)
 
-    if int(finite.sum()) < 10:
-        _log.warning(f"Skipping {label}: only {int(finite.sum())} valid depth points")
+    if num_valid < 10:
+        _log.warning(f"Skipping {label}: only {int(valid.sum())} valid depth points")
         return None
 
-    return eroded, xyz[finite], rgb[finite]
+    return eroded, xyz[valid], rgb[valid]
 
 
 def aabb_to_cuboid(aabb: np.ndarray, name: str) -> trimesh.primitives.Box:
