@@ -306,7 +306,6 @@ def process_scene_geometry(
     bboxes: list,
     grasps: dict,
     recgen_meshes: dict[str, trimesh.Trimesh] | None = None,
-    object_pcds: dict[str, o3d.geometry.PointCloud] | None = None,
 ) -> ProcessedScene:
     """Process perception results into 3D scene geometry for TAMP.
 
@@ -317,7 +316,6 @@ def process_scene_geometry(
         bboxes: Bounding boxes from Gemini
         grasps: Grasp predictions from M2T2
         recgen_meshes: Per-object meshes in world frame (e.g. from RecGen). When provided, replaces the convex-hull path.
-        object_pcds: Optional pre-computed object point clouds
 
     Returns:
         ProcessedScene with table cuboid, object meshes, pcds, and filtered grasps
@@ -336,7 +334,7 @@ def process_scene_geometry(
         # the surviving labels so downstream loops don't KeyError.
         erode_pixels = tiptop_cfg().perception.mask_erosion_pixels
         masks_2d = masks.squeeze(1).astype(bool)
-        object_pcds_computed = {}
+        object_pcds = {}
         for mask_2d, bbox in zip(masks_2d, bboxes):
             label = bbox["label"]
             if label not in recgen_meshes:
@@ -344,19 +342,19 @@ def process_scene_geometry(
             points = masked_object_points(mask_2d, xyz_map, rgb_map, erode_pixels, label)
             if points is None:
                 continue
-            _eroded_mask, xyz_obj, rgb_obj = points
+            _, xyz_obj, rgb_obj = points
             keep = xyz_obj[:, 2] > table_top_z
-            if int(keep.sum()) <= 10:
-                _log.warning(f"Skipping {label}: {int(keep.sum())} points above table (need > 10)")
+            if keep.sum() <= 10:
+                _log.warning(f"Skipping {label}: {keep.sum()} points above table (need > 10)")
                 continue
             pcd = o3d.geometry.PointCloud()
             pcd.points = o3d.utility.Vector3dVector(xyz_obj[keep])
             pcd.colors = o3d.utility.Vector3dVector(rgb_obj[keep])
             pcd, _ = pcd.remove_statistical_outlier(nb_neighbors=10, std_ratio=2.0)
-            object_pcds_computed[label] = pcd
-        object_trimeshes = {label: mesh for label, mesh in recgen_meshes.items() if label in object_pcds_computed}
+            object_pcds[label] = pcd
+        object_trimeshes = {label: mesh for label, mesh in recgen_meshes.items() if label in object_pcds}
     else:
-        object_trimeshes, object_pcds_computed = segment_pointcloud_by_masks(
+        object_trimeshes, object_pcds = segment_pointcloud_by_masks(
             xyz_map,
             rgb_map,
             masks,
@@ -365,10 +363,6 @@ def process_scene_geometry(
             return_pcd=True,
             erode_pixels=tiptop_cfg().perception.mask_erosion_pixels,
         )
-
-    # Use provided point clouds if available, otherwise use computed ones
-    if object_pcds is None:
-        object_pcds = object_pcds_computed
 
     if not object_pcds:
         raise ValueError("No objects with sufficient point cloud data; cannot associate grasps.")
