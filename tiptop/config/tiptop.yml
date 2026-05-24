@@ -56,16 +56,14 @@ perception:
     mode: "local"
 
   recgen:
-    # Server setup: https://github.com/williamshen-nz/recgen
-    url: "http://localhost:7324"
-    # Use RecGen for object shape completion instead of convex hulls.
-    # Typically set to false in production — RecGen is significantly slower than convex hulls.
+    # We use RecGen (https://reconstruction-by-generation.github.io) for shape completion instead of convex hulls.
+    # This is typically set to false as RecGen is significantly slower than convex hulls.
+    # For instructions to set up the RecGen server, see: https://github.com/williamshen-nz/recgen
+    url: "http://visiongpuws02.csail.mit.edu:18324"
     enabled: true
-    # Target face count per object after server-side quadric edge-collapse decimation.
-    # Set to null to disable decimation (will send huge meshes over the wire).
+    # Target mesh face count per object via decimation (applied server-side). Set to null to disable (huge meshes).
     target_faces: 1000
-    # Max in-flight /generate requests. Objects are dispatched concurrently and the
-    # gateway fans them across GPUs; set at or slightly above the gateway's GPU count.
+    # Maximum concurrent requests to RecGen inference server. Set at or slightly above gateway's GPU count.
     concurrency: 6
 
   # Perception hyperparameters
