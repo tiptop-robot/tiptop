@@ -146,12 +146,7 @@ def get_demo_container(
 
     # Cameras (the input source) are up, so confirm the perception servers that consume
     # their frames before the slow cuRobo warmup below — a down server fails fast here.
-    async def _check() -> None:
-        connector = aiohttp.TCPConnector(limit=10, force_close=True)
-        async with aiohttp.ClientSession(connector=connector) as session:
-            await check_server_health(session)
-
-    asyncio.run(_check())
+    asyncio.run(check_server_health())
 
     # Create depth estimator once — closed over camera intrinsics
     # Cache the SAM2 client
@@ -172,8 +167,18 @@ def get_demo_container(
     )
 
 
-async def check_server_health(session: aiohttp.ClientSession):
-    """Check health of FoundationStereo, M2T2, and (optionally) RecGen servers."""
+async def check_server_health(session: aiohttp.ClientSession | None = None):
+    """Check health of FoundationStereo, M2T2, and (optionally) RecGen servers.
+
+    If no session is given, a temporary one is created and closed, so this can be
+    run standalone via ``asyncio.run(check_server_health())``.
+    """
+    if session is None:
+        connector = aiohttp.TCPConnector(limit=10, force_close=True)
+        async with aiohttp.ClientSession(connector=connector) as owned_session:
+            await check_server_health(owned_session)
+        return
+
     from tiptop.perception.foundation_stereo import check_health_status as fs_check_health_status
     from tiptop.perception.m2t2 import check_health_status as m2t2_check_health_status
     from tiptop.perception.recgen import check_health_status as recgen_check_health_status
