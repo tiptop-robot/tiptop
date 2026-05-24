@@ -130,16 +130,6 @@ def get_demo_container(
 ) -> _DemoContainer:
     """Cache and warm-up everything needed for the live demo."""
     _log.info("Starting demo warmup...")
-
-    # Ping the perception servers first so a down server fails fast, before the slow
-    # cuRobo warmup below rather than after it.
-    async def _check() -> None:
-        connector = aiohttp.TCPConnector(limit=10, force_close=True)
-        async with aiohttp.ClientSession(connector=connector) as session:
-            await check_server_health(session)
-
-    asyncio.run(_check())
-
     client = get_robot_client()
 
     # Setup cameras
@@ -153,6 +143,15 @@ def get_demo_container(
             raise NotImplementedError(f"Recording requires a ZED hand camera, got {type(cam).__name__}")
         if not isinstance(external_cam, ZedCamera):
             raise NotImplementedError(f"Recording requires a ZED external camera, got {type(external_cam).__name__}")
+
+    # Cameras (the input source) are up, so confirm the perception servers that consume
+    # their frames before the slow cuRobo warmup below — a down server fails fast here.
+    async def _check() -> None:
+        connector = aiohttp.TCPConnector(limit=10, force_close=True)
+        async with aiohttp.ClientSession(connector=connector) as session:
+            await check_server_health(session)
+
+    asyncio.run(_check())
 
     # Create depth estimator once — closed over camera intrinsics
     # Cache the SAM2 client
