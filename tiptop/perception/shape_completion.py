@@ -52,6 +52,7 @@ async def reconstruct_objects_with_recgen(
     Returns:
         Dict with object meshes in world frame, keyed by bbox["label"].
     """
+    _log.warning("RecGen shape completion is EXPERIMENTAL: slower and less battle-tested than the convex-hull default.")
     t_start = time.perf_counter()
     if masks.ndim == 4 and masks.shape[1] == 1:
         masks = masks[:, 0]
