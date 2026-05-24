@@ -1,12 +1,11 @@
 """Per-object shape completion via RecGen."""
 
+import asyncio
 import logging
 import time
 
 import aiohttp
-import cv2
 import numpy as np
-import open3d as o3d
 import trimesh
 from jaxtyping import Bool, Float, UInt8
 
@@ -24,94 +23,82 @@ async def reconstruct_objects_with_recgen(
     bboxes: list[dict],
     intrinsics: Float[np.ndarray, "3 3"],
     world_from_cam: Float[np.ndarray, "4 4"],
-    xyz_world: Float[np.ndarray, "h w 3"],
-    rgb_world: Float[np.ndarray, "h w 3"],
-    erode_pixels: int,
     seed: int = 42,
     target_faces: int | None = None,
-) -> tuple[dict[str, trimesh.Trimesh], dict[str, o3d.geometry.PointCloud]]:
-    """Run RecGen on each object mask sequentially.
-
-    The mesh is reconstructed in the camera frame and transformed to world frame
-    via world_from_cam. The point cloud is built from xyz_world (the partial depth
-    observation); the caller is responsible for any table-relative filtering.
-
-    Returns (object_meshes, object_pcds) keyed by bbox["label"].
+    concurrency: int = 4,
+) -> dict[str, trimesh.Trimesh]:
     """
+    Reconstruct each detected object's world-frame mesh with RecGen, concurrently.
+
+    Requests are dispatched together and bounded by ``concurrency`` (set near the server's GPU count); the server fans
+    them across GPUs. Each mesh is reconstructed in the camera frame and transformed to world frame via world_from_cam.
+    Raises RuntimeError if any object's request fails, rather than silently dropping it. The masked depth point cloud is
+    intentionally not computed here: RecGen needs only the mask, and the downstream pipeline derives object point clouds
+    from the masks itself.
+
+    Args:
+        session: Shared aiohttp session.
+        server_url: RecGen server base URL.
+        rgb_cam: Camera-frame RGB image.
+        depth_cam: Camera-frame depth (meters).
+        masks: Per-object segmentation masks.
+        bboxes: Per-object bbox dicts; only "label" is used here.
+        intrinsics: Camera intrinsics.
+        world_from_cam: Camera-to-world transform applied to each mesh.
+        seed: RecGen seed for reproducible reconstruction.
+        target_faces: If set, server-side decimate each mesh to this many faces.
+        concurrency: Max in-flight requests.
+
+    Returns:
+        Dict with object meshes in world frame, keyed by bbox["label"].
+    """
+    t_start = time.perf_counter()
     if masks.ndim == 4 and masks.shape[1] == 1:
         masks = masks[:, 0]
     masks_2d = masks.astype(bool)
     if len(bboxes) != masks_2d.shape[0]:
         raise ValueError(f"bboxes ({len(bboxes)}) and masks ({masks_2d.shape[0]}) length mismatch")
 
+    sem = asyncio.Semaphore(max(1, concurrency))
+
+    async def request_shape_completion(_label: str, _mask: Bool[np.ndarray, "h w"]) -> dict:
+        """POST one object to RecGen under the semaphore; raise with context on failure."""
+        async with sem:
+            _t_request = time.perf_counter()
+            try:
+                _response = await generate_shape_async(
+                    session,
+                    server_url=server_url,
+                    rgb=rgb_cam,
+                    depth=depth_cam,
+                    mask=_mask,
+                    intrinsics=intrinsics,
+                    seed=seed,
+                    target_faces=target_faces,
+                )
+            except Exception as e:
+                raise RuntimeError(f"RecGen reconstruction failed for object '{_label}': {e}") from e
+        _log.debug(f"RecGen for {_label} took {time.perf_counter() - _t_request:.2f}s")
+        return _response
+
+    # Dispatch every object's request concurrently; gather preserves order, so each response lines up with its bbox
+    labels = [bbox["label"] for bbox in bboxes]
+    responses = await asyncio.gather(*(request_shape_completion(label, mask) for label, mask in zip(labels, masks_2d)))
+
+    # Transform the reconstructed meshes from the camera frame into the world frame.
     object_meshes: dict[str, trimesh.Trimesh] = {}
-    object_pcds: dict[str, o3d.geometry.PointCloud] = {}
-
-    for mask_2d, bbox in zip(masks_2d, bboxes):
-        label = bbox["label"]
-
-        # Erode to handle depth edge noise; fall back to the un-eroded mask if too few
-        # valid points remain (e.g. thin objects like knives).
-        original_mask = mask_2d
-        if erode_pixels > 0:
-            kernel = np.ones((erode_pixels * 2 + 1, erode_pixels * 2 + 1), np.uint8)
-            mask_2d = cv2.erode(mask_2d.astype(np.uint8), kernel, iterations=1).astype(bool)
-
-        xyz_obj = xyz_world[mask_2d]
-        rgb_obj = rgb_world[mask_2d]
-        valid = ~np.isnan(xyz_obj).any(axis=1)
-        xyz_obj = xyz_obj[valid]
-        rgb_obj = rgb_obj[valid]
-
-        if len(xyz_obj) < 10 and erode_pixels > 0:
-            _log.warning(f"{label}: too few points ({len(xyz_obj)}) after erosion; retrying with erode_pixels=0")
-            mask_2d = original_mask
-            xyz_obj = xyz_world[mask_2d]
-            rgb_obj = rgb_world[mask_2d]
-            valid = ~np.isnan(xyz_obj).any(axis=1)
-            xyz_obj = xyz_obj[valid]
-            rgb_obj = rgb_obj[valid]
-
-        if len(xyz_obj) < 10:
-            _log.warning(f"Skipping {label}: only {len(xyz_obj)} valid depth points")
-            continue
-
-        t0 = time.perf_counter()
-        payload = await generate_shape_async(
-            session,
-            server_url,
-            rgb=rgb_cam,
-            depth=depth_cam,
-            mask=mask_2d,
-            intrinsics=intrinsics,
-            seed=seed,
-            target_faces=target_faces,
-        )
-        recgen_s = time.perf_counter() - t0
-
-        verts_cam = np.asarray(payload["vertices"], dtype=np.float64)
+    for label, response in zip(labels, responses):
+        verts_cam = np.asarray(response["vertices"], dtype=np.float64)
         verts_hom = np.c_[verts_cam, np.ones(len(verts_cam))]
         verts_world = (world_from_cam @ verts_hom.T).T[:, :3]
 
-        mesh_kwargs = {
-            "vertices": verts_world,
-            "faces": np.asarray(payload["faces"]),
-            "process": False,
-        }
-        if "vertex_colors" in payload:
-            mesh_kwargs["vertex_colors"] = np.asarray(payload["vertex_colors"])
+        mesh_kwargs = {"vertices": verts_world, "faces": np.asarray(response["faces"]), "process": False}
+        if "vertex_colors" in response:
+            mesh_kwargs["vertex_colors"] = np.asarray(response["vertex_colors"])
         mesh = trimesh.Trimesh(**mesh_kwargs)
         mesh.metadata = {"name": label}
         object_meshes[label] = mesh
+        _log.info(f"RecGen {label}: {len(mesh.vertices)} verts, {len(mesh.faces)} faces")
 
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(xyz_obj)
-        pcd.colors = o3d.utility.Vector3dVector(rgb_obj)
-        object_pcds[label] = pcd
-
-        _log.info(
-            f"RecGen {label}: {recgen_s:.2f}s, {len(mesh.vertices)} verts, "
-            f"{len(mesh.faces)} faces; pcd={len(pcd.points)} pts"
-        )
-
-    return object_meshes, object_pcds
+    _log.info(f"RecGen reconstructed {len(object_meshes)} object(s) in {time.perf_counter() - t_start:.2f}s")
+    return object_meshes

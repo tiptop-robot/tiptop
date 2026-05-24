@@ -5,9 +5,57 @@ import cv2
 import numpy as np
 import open3d as o3d
 import trimesh
+from jaxtyping import Bool, Float
 
 # Set up logging
 _log = logging.getLogger(__name__)
+
+
+def masked_object_points(
+    mask: Bool[np.ndarray, "h w"],
+    xyz_world: Float[np.ndarray, "h w 3"],
+    rgb_world: Float[np.ndarray, "h w 3"],
+    erode_pixels: int,
+    label: str,
+) -> tuple[Bool[np.ndarray, "h w"], np.ndarray, np.ndarray] | None:
+    """
+    Erode an object mask and gather its valid (non-NaN) point cloud.
+
+    Erosion suppresses depth edge noise; if it leaves too few points (e.g. thin objects like knives), falls back to the
+    un-eroded mask.
+
+    Args:
+        mask: Object segmentation mask (non-zero = object).
+        xyz_world: Structured (H, W, 3) point cloud in world frame.
+        rgb_world: (H, W, 3) colors aligned to xyz_world.
+        erode_pixels: Pixels to erode the mask by; 0 disables erosion.
+        label: Object label, used only for logging.
+
+    Returns:
+        Tuple of the (possibly eroded) mask and its (xyz, rgb) points, or None if the object has fewer than 10 valid
+        depth points.
+    """
+    eroded = mask
+    if erode_pixels > 0:
+        kernel = np.ones((erode_pixels * 2 + 1, erode_pixels * 2 + 1), np.uint8)
+        eroded = cv2.erode(mask.astype(np.uint8), kernel, iterations=1).astype(bool)
+
+    xyz = xyz_world[eroded]
+    rgb = rgb_world[eroded]
+    finite = ~np.isnan(xyz).any(axis=1)
+
+    if int(finite.sum()) < 10 and erode_pixels > 0:
+        _log.warning(f"{label}: too few points after erosion; retrying with erode_pixels=0")
+        eroded = mask
+        xyz = xyz_world[eroded]
+        rgb = rgb_world[eroded]
+        finite = ~np.isnan(xyz).any(axis=1)
+
+    if int(finite.sum()) < 10:
+        _log.warning(f"Skipping {label}: only {int(finite.sum())} valid depth points")
+        return None
+
+    return eroded, xyz[finite], rgb[finite]
 
 
 def aabb_to_cuboid(aabb: np.ndarray, name: str) -> trimesh.primitives.Box:
@@ -340,35 +388,10 @@ def segment_pointcloud_by_masks(
     for mask_2d, bbox in zip(masks_2d, bboxes):
         label = bbox["label"]
 
-        # Erode the mask to handle depth edge noise. If erosion leaves too few
-        # points (e.g. thin objects like knives), fall back to the un-eroded mask.
-        original_mask = mask_2d
-        if erode_pixels > 0:
-            kernel = np.ones((erode_pixels * 2 + 1, erode_pixels * 2 + 1), np.uint8)
-            mask_2d = cv2.erode(mask_2d.astype(np.uint8), kernel, iterations=1).astype(bool)
-
-        # Get points for this object using the mask
-        xyz_obj = xyz_world[mask_2d]
-        rgb_obj = rgb[mask_2d]
-
-        # Filter out invalid points
-        valid = ~np.isnan(xyz_obj).any(axis=1)
-        xyz_obj = xyz_obj[valid]
-        rgb_obj = rgb_obj[valid]
-
-        if len(xyz_obj) < 10 and erode_pixels > 0:
-            _log.warning(
-                f"{label}: too few points ({len(xyz_obj)}) after erosion; retrying with erode_pixels=0"
-            )
-            xyz_obj = xyz_world[original_mask]
-            rgb_obj = rgb[original_mask]
-            valid = ~np.isnan(xyz_obj).any(axis=1)
-            xyz_obj = xyz_obj[valid]
-            rgb_obj = rgb_obj[valid]
-
-        if len(xyz_obj) < 10:
-            _log.warning(f"Skipping {label}: too few points ({len(xyz_obj)})")
+        points = masked_object_points(mask_2d, xyz_world, rgb, erode_pixels, label)
+        if points is None:
             continue
+        _, xyz_obj, rgb_obj = points
 
         z_mask = xyz_obj[..., 2] > max_z
         if not z_mask.any():

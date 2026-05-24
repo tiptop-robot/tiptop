@@ -64,6 +64,9 @@ perception:
     # Target face count per object after server-side quadric edge-collapse decimation.
     # Set to null to disable decimation (will send huge meshes over the wire).
     target_faces: 1000
+    # Max in-flight /generate requests. Objects are dispatched concurrently and the
+    # gateway fans them across GPUs; set at or slightly above the gateway's GPU count.
+    concurrency: 6
 
   # Perception hyperparameters
   depth_trunc_m: 5.0             # Depth truncation threshold in meters

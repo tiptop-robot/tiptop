@@ -40,7 +40,11 @@ from tiptop.perception.cameras import (
 )
 from tiptop.perception.m2t2 import m2t2_to_tiptop_transform
 from tiptop.perception.sam2 import sam2_client
-from tiptop.perception.segmentation import segment_pointcloud_by_masks, segment_table_with_ransac
+from tiptop.perception.segmentation import (
+    masked_object_points,
+    segment_pointcloud_by_masks,
+    segment_table_with_ransac,
+)
 from tiptop.perception.shape_completion import reconstruct_objects_with_recgen
 from tiptop.perception.utils import convert_trimesh_box_to_curobo_cuboid, convert_trimesh_to_curobo_mesh
 from tiptop.perception_wrapper import detect_and_segment, predict_depth_and_grasps
@@ -295,7 +299,6 @@ def process_scene_geometry(
     bboxes: list,
     grasps: dict,
     recgen_meshes: dict[str, trimesh.Trimesh] | None = None,
-    recgen_pcds: dict[str, o3d.geometry.PointCloud] | None = None,
     object_pcds: dict[str, o3d.geometry.PointCloud] | None = None,
 ) -> ProcessedScene:
     """Process perception results into 3D scene geometry for TAMP.
@@ -307,7 +310,6 @@ def process_scene_geometry(
         bboxes: Bounding boxes from Gemini
         grasps: Grasp predictions from M2T2
         recgen_meshes: Per-object meshes in world frame (e.g. from RecGen). When provided, replaces the convex-hull path.
-        recgen_pcds: Per-object masked depth pcds paired with recgen_meshes (not yet z-filtered against the table).
         object_pcds: Optional pre-computed object point clouds
 
     Returns:
@@ -322,25 +324,29 @@ def process_scene_geometry(
     config = TAMPConfiguration()
     table_top_z = table_trimesh.bounds[1, 2] + config.world_activation_distance + config.coll_sphere_radius * 2
     if recgen_meshes is not None:
-        if recgen_pcds is None:
-            raise ValueError("recgen_pcds must be provided alongside recgen_meshes")
-        # Apply the same table-relative z-filter + outlier removal the convex-hull path
-        # uses. Drop objects with too few above-table points (need > nb_neighbors=10
-        # for remove_statistical_outlier). Keep object_trimeshes in sync with the
-        # surviving labels so downstream loops don't KeyError.
+        # Derive each object's point cloud from its mask, then apply the same table-relative z-filter + outlier removal
+        # the convex-hull path uses. Drop objects with too few above-table points. Keep object_trimeshes in sync with
+        # the surviving labels so downstream loops don't KeyError.
+        erode_pixels = tiptop_cfg().perception.mask_erosion_pixels
+        masks_2d = masks.squeeze(1).astype(bool)
         object_pcds_computed = {}
-        for label, pcd in recgen_pcds.items():
-            pts = np.asarray(pcd.points)
-            cols = np.asarray(pcd.colors)
-            keep = pts[:, 2] > table_top_z
-            if keep.sum() <= 10:
+        for mask_2d, bbox in zip(masks_2d, bboxes):
+            label = bbox["label"]
+            if label not in recgen_meshes:
+                continue
+            points = masked_object_points(mask_2d, xyz_map, rgb_map, erode_pixels, label)
+            if points is None:
+                continue
+            _eroded_mask, xyz_obj, rgb_obj = points
+            keep = xyz_obj[:, 2] > table_top_z
+            if int(keep.sum()) <= 10:
                 _log.warning(f"Skipping {label}: {int(keep.sum())} points above table (need > 10)")
                 continue
-            out = o3d.geometry.PointCloud()
-            out.points = o3d.utility.Vector3dVector(pts[keep])
-            out.colors = o3d.utility.Vector3dVector(cols[keep])
-            out, _ = out.remove_statistical_outlier(nb_neighbors=10, std_ratio=2.0)
-            object_pcds_computed[label] = out
+            pcd = o3d.geometry.PointCloud()
+            pcd.points = o3d.utility.Vector3dVector(xyz_obj[keep])
+            pcd.colors = o3d.utility.Vector3dVector(rgb_obj[keep])
+            pcd, _ = pcd.remove_statistical_outlier(nb_neighbors=10, std_ratio=2.0)
+            object_pcds_computed[label] = pcd
         object_trimeshes = {label: mesh for label, mesh in recgen_meshes.items() if label in object_pcds_computed}
     else:
         object_trimeshes, object_pcds_computed = segment_pointcloud_by_masks(
@@ -496,6 +502,7 @@ async def run_perception(
 ) -> tuple[TAMPEnvironment, list, ProcessedScene, list[dict]]:
     start_time = time.perf_counter()
 
+    cfg = tiptop_cfg()
     frame = observation.frame
     rgb = frame.rgb
     if log_to_rerun:
@@ -507,7 +514,7 @@ async def run_perception(
             session,
             frame,
             observation.world_from_cam,
-            tiptop_cfg().perception.voxel_downsample_size,
+            cfg.perception.voxel_downsample_size,
             depth_estimator=depth_estimator,
             gripper_mask=gripper_mask,
         ),
@@ -541,10 +548,8 @@ async def run_perception(
 
     # Reconstruct objects with RecGen (when enabled).
     recgen_meshes: dict[str, trimesh.Trimesh] | None = None
-    recgen_pcds: dict[str, o3d.geometry.PointCloud] | None = None
-    cfg = tiptop_cfg()
     if cfg.perception.recgen.enabled:
-        recgen_meshes, recgen_pcds = await reconstruct_objects_with_recgen(
+        recgen_meshes = await reconstruct_objects_with_recgen(
             session,
             cfg.perception.recgen.url,
             rgb_cam=rgb,
@@ -553,10 +558,8 @@ async def run_perception(
             bboxes=detection_results["bboxes"],
             intrinsics=frame.intrinsics,
             world_from_cam=observation.world_from_cam,
-            xyz_world=depth_results["xyz_map"],
-            rgb_world=depth_results["rgb_map"],
-            erode_pixels=cfg.perception.mask_erosion_pixels,
             target_faces=cfg.perception.recgen.target_faces,
+            concurrency=cfg.perception.recgen.concurrency,
         )
 
     # Run scene geometry processing while saving
@@ -569,7 +572,6 @@ async def run_perception(
         detection_results["bboxes"],
         depth_results["grasps"],
         recgen_meshes=recgen_meshes,
-        recgen_pcds=recgen_pcds,
     )
     processed_scene, save_result = await asyncio.gather(process_coroutine, save_future)
 
