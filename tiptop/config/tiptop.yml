@@ -62,7 +62,7 @@ perception:
     # For instructions to set up the RecGen server, see: https://github.com/williamshen-nz/recgen
     # We recommend running it on a multi-GPU machine to speed up inference, as we generate completions per-object.
     url: "http://<endpoint>:18324"
-    enabled: true
+    enabled: false
     # Target mesh face count per object via decimation (applied server-side). Set to null to disable (huge meshes).
     target_faces: 1000
     # Maximum concurrent requests to RecGen inference server. Set at or slightly above gateway's GPU count.
