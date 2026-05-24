@@ -41,16 +41,14 @@ def masked_object_points(
     xyz = xyz_world[eroded]
     rgb = rgb_world[eroded]
     valid = ~np.isnan(xyz).any(axis=1)
-    num_valid = valid.sum()
-
-    if num_valid < 10 and erode_pixels > 0:
+    if valid.sum() < 10 and erode_pixels > 0:
         _log.warning(f"{label}: too few points after erosion; retrying with erode_pixels=0")
         eroded = mask
         xyz = xyz_world[eroded]
         rgb = rgb_world[eroded]
         valid = ~np.isnan(xyz).any(axis=1)
 
-    if num_valid < 10:
+    if valid.sum() < 10:
         _log.warning(f"Skipping {label}: only {int(valid.sum())} valid depth points")
         return None
 
