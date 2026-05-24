@@ -30,12 +30,14 @@ _log = logging.getLogger(__name__)
 @cache
 def _get_git_root() -> Path:
     """Return the repository root."""
-    return Path(subprocess.check_output(
-        ["git", "rev-parse", "--show-toplevel"],
-        cwd=Path(__file__).parent,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    ).strip())
+    return Path(
+        subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=Path(__file__).parent,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    )
 
 
 def _collect_git_info() -> dict:
@@ -56,6 +58,7 @@ def _collect_git_info() -> dict:
             cwd=root,
             stderr=subprocess.DEVNULL,
             text=True,
+            encoding="utf-8",
         )
         dirty = bool(porcelain.strip())
         return {"commit": commit, "dirty": dirty, "porcelain": porcelain.strip() if dirty else None}
@@ -73,6 +76,7 @@ def _get_git_diff() -> str | None:
             cwd=root,
             stderr=subprocess.DEVNULL,
             text=True,
+            encoding="utf-8",
         )
         return diff if diff else None
     except (FileNotFoundError, subprocess.CalledProcessError):

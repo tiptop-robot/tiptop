@@ -130,6 +130,16 @@ def get_demo_container(
 ) -> _DemoContainer:
     """Cache and warm-up everything needed for the live demo."""
     _log.info("Starting demo warmup...")
+
+    # Ping the perception servers first so a down server fails fast, before the slow
+    # cuRobo warmup below rather than after it.
+    async def _check() -> None:
+        connector = aiohttp.TCPConnector(limit=10, force_close=True)
+        async with aiohttp.ClientSession(connector=connector) as session:
+            await check_server_health(session)
+
+    asyncio.run(_check())
+
     client = get_robot_client()
 
     # Setup cameras
@@ -178,20 +188,6 @@ async def check_server_health(session: aiohttp.ClientSession):
         health_checks.append(recgen_check_health_status(session, cfg.perception.recgen.url))
     await asyncio.gather(*health_checks)
     _log.info("Server health checks successful!")
-
-
-def check_servers_healthy() -> None:
-    """Ping the perception servers synchronously, raising if any is unavailable.
-
-    Run before the slow cuRobo warmup so a down server fails fast instead of after it.
-    """
-
-    async def _run() -> None:
-        connector = aiohttp.TCPConnector(limit=10, force_close=True)
-        async with aiohttp.ClientSession(connector=connector) as session:
-            await check_server_health(session)
-
-    asyncio.run(_run())
 
 
 def _label_rollout(save_dir: Path, output_dir: str, date_str: str, timestamp: str) -> None:
@@ -793,9 +789,6 @@ def _sync_entrypoint(
 
     global _executor_pool
     setup_logging(level=logging.DEBUG)
-
-    # Fail fast if a perception server is down, before the slow cuRobo warmup.
-    check_servers_healthy()
 
     container = get_demo_container(num_particles, config.coll_n_spheres, 0.0, enable_recording)
     # Workers ignore SIGINT so only the main process handles Ctrl+C for clean shutdown
