@@ -49,7 +49,9 @@ perception:
 
   m2t2:
     url: "http://localhost:8123"
-
+    # Set to false when world coordinate frame differs from the robot base link frame
+    apply_bounds: true
+  
   sam:
     mode: "local"
 

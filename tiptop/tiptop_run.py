@@ -20,7 +20,7 @@ from curobo.wrap.reacher.ik_solver import IKSolver
 from curobo.wrap.reacher.motion_gen import MotionGen
 from cutamp.config import TAMPConfiguration
 from cutamp.envs import TAMPEnvironment
-from cutamp.tamp_domain import HandEmpty, On
+from cutamp.tamp_domain import HandEmpty, Holding, On
 from cutamp.utils.rerun_utils import log_curobo_mesh_to_rerun
 from jaxtyping import Bool, Float
 from scipy.spatial import KDTree
@@ -220,6 +220,17 @@ def _get_task_instruction() -> str:
 def create_tamp_environment(
     object_meshes: dict[str, Mesh], table_cuboid: Cuboid, grounded_atoms: list[dict], include_workspace: bool
 ) -> tuple[TAMPEnvironment, list[Cuboid | Mesh]]:
+    # Reject goals that reference objects not present in the perceived scene.
+    # Without this, cuTAMP's BFS runs without stopping, expanding the move-chain on an unreachable goal.
+    known_labels = set(object_meshes.keys()) | {table_cuboid.name}
+    for atom in grounded_atoms:
+        for arg in atom.get("args", []):
+            if arg not in known_labels:
+                raise ValueError(
+                    f"Goal predicate {atom['predicate']}({', '.join(atom['args'])}) "
+                    f"references unknown object '{arg}'. Known objects: {sorted(known_labels)}"
+                )
+
     # Identify which objects are used as surfaces (second arg in on(x, y))
     surface_labels = set()
     for atom in grounded_atoms:
@@ -238,12 +249,20 @@ def create_tamp_environment(
     _log.info(f"Surfaces: {[s.name for s in surfaces]}")
 
     # Create goal state from grounded atoms
-    goal_state = {HandEmpty.ground()}
+    goal_state: set = set()
+    has_holding = False
     for atom in grounded_atoms:
         if atom["predicate"] == "on" and len(atom["args"]) == 2:
             movable_label, surface_label = atom["args"]
             goal_state.add(On.ground(movable_label, surface_label))
             _log.info(f"Goal: {movable_label} on {surface_label}")
+        elif atom["predicate"] == "holding" and len(atom["args"]) == 1:
+            has_holding = True
+            movable_label = atom["args"][0]
+            goal_state.add(Holding.ground(movable_label))
+            _log.info(f"Goal: holding {movable_label}")
+    if not has_holding:
+        goal_state.add(HandEmpty.ground())
 
     # All surfaces include table and detected surface objects
     all_surfaces = [table_cuboid, *surfaces]
@@ -528,6 +547,7 @@ async def async_entrypoint(container: _DemoContainer, config: TAMPConfiguration,
                 # Go to capture pose and ask user for instruction
                 _log.debug("Moving robot to capture joint positions")
                 go_to_capture(time_dilation_factor=cfg.robot.time_dilation_factor, motion_gen=container.motion_gen)
+                container.robot.open_gripper()  # ensure gripper is open
                 task_instruction = _get_task_instruction()  # Let UserExitException propagate
                 _log.info(f"User entered instruction: {task_instruction}")
 
@@ -630,6 +650,19 @@ async def async_entrypoint(container: _DemoContainer, config: TAMPConfiguration,
 
                     if execute_plan:
                         _label_rollout(save_dir, output_dir, date_str, timestamp)
+
+                        # If the goal was just to pick an object (i.e., goal contains Holding), ask the user to confirm before
+                        # opening the gripper so the object can drop safely
+                        if cutamp_plan is not None and any(atom.fluent.name == Holding.name for atom in env.goal_state):
+                            print("WARNING: object will drop when gripper opens, so be ready to catch it.")
+                            while True:
+                                try:
+                                    response = input("Open gripper? [y]: ").strip().lower()
+                                except KeyboardInterrupt:
+                                    raise UserExitException("User interrupted with Ctrl+C")
+                                if response == "y":
+                                    break
+                            container.robot.open_gripper()
                 except Exception:
                     _log.exception("TiPToP run failed")
                     raise

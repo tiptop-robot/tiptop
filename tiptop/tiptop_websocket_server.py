@@ -52,10 +52,10 @@ class TiptopPlanningServer:
         port: int = 8765,
         num_particles: int = 256,
         max_planning_time: float = 60.0,
-        rerun_mode: str = "stream",
+        rerun_mode: str = "disabled",
         include_workspace: bool = False,
     ) -> None:
-        if rerun_mode not in {"stream", "save"}:
+        if rerun_mode not in {"stream", "save", "disabled"}:
             raise ValueError(f"Invalid rerun mode: {rerun_mode}")
 
         self._host = host
@@ -82,6 +82,7 @@ class TiptopPlanningServer:
             time_dilation_factor=self._cfg.robot.time_dilation_factor,
         )
         self._output_dir = Path("tiptop_server_outputs")
+        self._pipeline_lock = asyncio.Lock()
 
     def _reset_motion_planning(self) -> None:
         """Reset collision world to initial state to clear stale cached state between runs."""
@@ -139,9 +140,10 @@ class TiptopPlanningServer:
 
                 _log.info(f"Received planning request: task='{obs.get('task', 'unknown')}'")
 
-                # Run the full pipeline
+                # Serialize pipeline runs: shared cuRobo/GPU state is not safe for concurrent use.
                 infer_start = time.monotonic()
-                result = await self._run_pipeline(obs)
+                async with self._pipeline_lock:
+                    result = await self._run_pipeline(obs)
                 infer_time = time.monotonic() - infer_start
 
                 # Add timing info
@@ -183,6 +185,7 @@ class TiptopPlanningServer:
                 - success: bool
                 - plan: list of plan steps (trajectory or gripper actions)
                 - error: str or None
+                - save_dir: absolute path to the per-run output directory (logs, metadata, plan, rerun .rrd)
         """
         now = datetime.now()
         timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
@@ -221,15 +224,17 @@ class TiptopPlanningServer:
             observation = Observation(frame=frame, world_from_cam=world_from_cam, q_init=q_init)
 
             # Initialize rerun if enabled (idempotent)
-            rr.init("tiptop_server", recording_id=timestamp, spawn=self._rerun_mode == "stream")
-            if self._rerun_mode == "save":
-                rrd_path = save_dir / "tiptop.rrd"
-                rr.save(rrd_path)
-                _log.info(f"Saving Rerun stream to {rrd_path}")
-            rerun_robot = get_robot_rerun()
+            if self._rerun_mode != "disabled":
+                rr.init("tiptop_server", recording_id=timestamp, spawn=self._rerun_mode == "stream")
+                if self._rerun_mode == "save":
+                    rrd_path = save_dir / "tiptop.rrd"
+                    rr.save(rrd_path)
+                    _log.info(f"Saving Rerun stream to {rrd_path}")
+                rerun_robot = get_robot_rerun()
 
             _log.info(f"Processing: RGB shape={rgb.shape}, depth shape={depth.shape}, task='{task_instruction}'")
-            rerun_robot.set_joint_positions(q_init)
+            if self._rerun_mode != "disabled":
+                rerun_robot.set_joint_positions(q_init)
 
             connector = aiohttp.TCPConnector(limit=10, force_close=True)
             timeout = aiohttp.ClientTimeout(total=120.0)
@@ -246,11 +251,12 @@ class TiptopPlanningServer:
                 )
                 perception_duration = time.monotonic() - perception_start
             # Log camera intrinsics and pose to rerun if enabled
-            rr.log("cam", rr.Pinhole(image_from_camera=K))
-            rr.log(
-                "cam",
-                rr.Transform3D(translation=world_from_cam[:3, 3], mat3x3=world_from_cam[:3, :3], axis_length=0.05),
-            )
+            if self._rerun_mode != "disabled":
+                rr.log("cam", rr.Pinhole(image_from_camera=K))
+                rr.log(
+                    "cam",
+                    rr.Transform3D(translation=world_from_cam[:3, 3], mat3x3=world_from_cam[:3, :3], axis_length=0.05),
+                )
 
             # Run cuTAMP planning
             _log.info("Running cuTAMP planning...")
@@ -270,6 +276,7 @@ class TiptopPlanningServer:
                     "success": False,
                     "plan": None,
                     "error": f"cuTAMP failed to find a plan: {failure_reason}",
+                    "save_dir": str(save_dir.resolve()),
                 }
 
             serialized_plan = serialize_plan(cutamp_plan, q_init)
@@ -281,6 +288,7 @@ class TiptopPlanningServer:
                 "success": True,
                 "plan": serialized_plan,
                 "error": None,
+                "save_dir": str(save_dir.resolve()),
             }
 
         except Exception as e:
@@ -291,6 +299,7 @@ class TiptopPlanningServer:
                 "success": False,
                 "plan": None,
                 "error": str(e),
+                "save_dir": str(save_dir.resolve()),
             }
         finally:
             if env is not None and processed_scene is not None:
@@ -316,7 +325,7 @@ def _run_server(
     port: int = 8765,
     num_particles: int = 256,
     max_planning_time: float = 60.0,
-    rerun_mode: str = "stream",
+    rerun_mode: str = "disabled",
     include_workspace: bool = False,
 ) -> None:
     """Tiptop websocket planning server.
@@ -326,7 +335,7 @@ def _run_server(
         port: Port to bind to.
         num_particles: Number of particles for cuTAMP.
         max_planning_time: Max planning time in seconds.
-        rerun_mode: Rerun visualization mode. 'stream' spawns the Rerun viewer; 'save' writes .rrd files to disk.
+        rerun_mode: Rerun visualization mode. 'stream' spawns the Rerun viewer; 'save' writes .rrd files to disk; 'disabled' skips all Rerun logging.
         include_workspace: If True, include real-robot workspace cuboids in the collision world.
     """
     print_tiptop_banner()
@@ -351,7 +360,8 @@ def _run_server(
     except Exception:
         _log.exception("Server failed")
     finally:
-        rr.disconnect()
+        if rerun_mode != "disabled":
+            rr.disconnect()
         # Force exit to avoid segfault during GPU resource cleanup (CUDA/Warp/cuRobo destructors)
         os._exit(exit_code)
 

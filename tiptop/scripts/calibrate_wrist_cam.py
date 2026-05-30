@@ -17,7 +17,9 @@ from scipy.spatial.transform import Rotation as R
 
 from tiptop.config import update_calibration_info
 from tiptop.motion_planning import get_motion_gen
-from tiptop.perception.cameras import RealsenseIntrinsics, ZedIntrinsics, get_hand_camera
+from tiptop.perception.cameras import get_hand_camera
+from tiptop.perception.cameras.rs_camera import RealsenseIntrinsics
+from tiptop.perception.cameras.zed_camera import ZedIntrinsics
 from tiptop.utils import get_robot_client, setup_logging
 from tiptop.workspace import workspace_cuboids
 

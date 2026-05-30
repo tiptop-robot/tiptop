@@ -23,7 +23,7 @@ from tiptop.ur5.ur5_client import UR5Client
 
 gripper_mask_path = config_dir / "assets" / "gripper_mask.png"
 
-REQUIRED_CUTAMP_VERSION = "0.0.4"
+REQUIRED_CUTAMP_VERSION = "0.0.5"
 
 
 def check_cutamp_version() -> None:
