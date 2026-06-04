@@ -4,7 +4,7 @@ Author: [Nishanth Kumar](https://nishanthjkumar.com/)
 
 May 08, 2026
 
-Origin Blog Link: [here](https://x.com/nishanthkumar23/status/2052766074597265837)
+Original Blog Link: [here](https://x.com/nishanthkumar23/status/2052766074597265837)
 
 
 
