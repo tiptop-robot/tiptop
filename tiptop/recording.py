@@ -34,7 +34,7 @@ def _get_git_root() -> Path:
         ["git", "rev-parse", "--show-toplevel"],
         cwd=Path(__file__).parent,
         stderr=subprocess.DEVNULL,
-        text=True,
+        encoding="utf-8",
     ).strip())
 
 
@@ -49,13 +49,14 @@ def _collect_git_info() -> dict:
             ["git", "rev-parse", "HEAD"],
             cwd=root,
             stderr=subprocess.DEVNULL,
-            text=True,
+            encoding="utf-8",
         ).strip()
         porcelain = subprocess.check_output(
             ["git", "status", "--porcelain", "--", ".", ":(exclude)pixi.lock"],
             cwd=root,
             stderr=subprocess.DEVNULL,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         dirty = bool(porcelain.strip())
         return {"commit": commit, "dirty": dirty, "porcelain": porcelain.strip() if dirty else None}
@@ -72,7 +73,8 @@ def _get_git_diff() -> str | None:
             ["git", "diff", "HEAD", "--", ".", ":(exclude)pixi.lock"],
             cwd=root,
             stderr=subprocess.DEVNULL,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         return diff if diff else None
     except (FileNotFoundError, subprocess.CalledProcessError):
