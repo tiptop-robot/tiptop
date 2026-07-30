@@ -2,8 +2,6 @@
 
 import pytest
 
-from tiptop.scripts.viz_tiptop_run import parse_grasped_object
-
 
 @pytest.mark.parametrize(
     "label, expected",
@@ -16,10 +14,16 @@ from tiptop.scripts.viz_tiptop_run import parse_grasped_object
     ],
 )
 def test_parse_grasped_object(label, expected):
+    # Local import to avoid slow transitive imports affecting other tests
+    from tiptop.scripts.viz_tiptop_run import parse_grasped_object
+
     assert parse_grasped_object(label) == expected
 
 
 @pytest.mark.parametrize("label", ["not a label", "Pick()", "Pick(only_one_arg)"])
 def test_parse_grasped_object_raises_on_unparseable(label):
+    # Local import to avoid slow transitive imports affecting other tests
+    from tiptop.scripts.viz_tiptop_run import parse_grasped_object
+
     with pytest.raises(ValueError, match="Could not parse object name"):
         parse_grasped_object(label)

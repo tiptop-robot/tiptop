@@ -34,7 +34,7 @@ def parse_grasped_object(label: str) -> str:
     """
     match = re.match(r"\w+\(([^,]+),", label)
     if match is None:
-        raise ValueError(f"Could not parse object name from label: {label}")
+        raise ValueError(f"Could not parse object name from label: {label!r}")
     return match.group(1).strip()
 
 
