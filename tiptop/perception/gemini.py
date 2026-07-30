@@ -15,7 +15,7 @@ _PROMPTS_DIR = Path(__file__).parent / "prompts"
 @cache
 def load_prompt(prompt_name: str) -> str:
     """Load a prompt template from the prompts directory."""
-    return (_PROMPTS_DIR / f"{prompt_name}.txt").read_text().strip()
+    return (_PROMPTS_DIR / f"{prompt_name}.txt").read_text(encoding="utf-8").strip()
 
 
 @cache
