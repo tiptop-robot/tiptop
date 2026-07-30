@@ -97,12 +97,13 @@ def viz_tiptop_plan(tiptop_plan: dict, cutamp_env: TAMPEnvironment, robot_rr: Re
         elif action_dict["type"] == "gripper":
             if action_dict["action"] == "close":
                 # Parse object name from label e.g. "Pick(crackers_in_wrapper, grasp1, q1)".
-                # Capture up to the next comma rather than \w+ so labels with apostrophes like
-                # "Rubik's_cube" aren't truncated ("Rubik") and lookup doesn't fail with KeyError.
-                match = re.match(r"\w+\(([^,]+)", action_dict["label"])
+                # Match up to the first comma rather than \w+ so names with apostrophes like
+                # "Rubik's_cube" aren't truncated ("Rubik"). strip() keeps surrounding whitespace
+                # out of the value, since grasped_obj is used as a key into obj_to_current_pose.
+                match = re.match(r"\w+\(([^,]+),", action_dict["label"])
                 if match is None:
                     raise ValueError(f"Could not parse object name from label: {action_dict['label']}")
-                grasped_obj = match.group(1)
+                grasped_obj = match.group(1).strip()
                 world_from_ee = (
                     kin_model.get_state(torch.tensor(last_q, device=device)[None]).ee_pose.get_matrix()[0].cpu().numpy()
                 )
