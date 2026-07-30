@@ -59,6 +59,14 @@ def test_missing_section_raises_on_normal_run(tmp_path, packaged_cfg):
         set_tiptop_cfg_from_file(write_cfg(tmp_path / "stale.yml", stale))
 
 
+def test_extra_keys_are_kept_and_do_not_raise(tmp_path, packaged_cfg):
+    """A recording may carry keys since dropped from the defaults; only *missing* keys are an error."""
+    extended = copy_cfg(packaged_cfg)
+    extended.robot.retired_option = 42
+    cfg = set_tiptop_cfg_from_file(write_cfg(tmp_path / "extended.yml", extended))
+    assert cfg.robot.retired_option == 42
+
+
 def test_fill_missing_recovers_defaults_and_warns(tmp_path, packaged_cfg, caplog):
     """Recorded configs replayed by tiptop-offline predate later keys and cannot be updated after the fact."""
     stale = copy_cfg(packaged_cfg)
@@ -67,7 +75,7 @@ def test_fill_missing_recovers_defaults_and_warns(tmp_path, packaged_cfg, caplog
 
     cfg = set_tiptop_cfg_from_file(write_cfg(tmp_path / "old_run.yml", stale), fill_missing=True)
 
-    assert cfg.cameras.hand.serial == packaged_cfg.cameras.hand.serial
+    assert cfg.cameras == packaged_cfg.cameras
     assert cfg.perception.m2t2.apply_bounds == packaged_cfg.perception.m2t2.apply_bounds
     assert any("missing keys" in record.message for record in caplog.records)
 
