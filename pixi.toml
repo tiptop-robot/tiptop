@@ -73,6 +73,7 @@ setup-planners = { depends-on = ["install-curobo", "install-cutamp"] }
 setup-all = { depends-on = ["install-zed", "install-curobo", "install-cutamp"] }
 
 # Testing tasks
+test-unit = "pytest tests/ -m 'not integration' -v"
 test-integration = "pytest tests/ -m integration -v"
 
 # Documentation tasks

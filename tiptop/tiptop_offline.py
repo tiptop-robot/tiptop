@@ -350,7 +350,7 @@ def run_tiptop_rerun(
     # Restore config from the original run so tiptop_cfg() consumers don't drift
     saved_cfg_path = run_dir_path / "tiptop.yml"
     if saved_cfg_path.exists():
-        set_tiptop_cfg_from_file(saved_cfg_path)
+        set_tiptop_cfg_from_file(saved_cfg_path, fill_missing=True)
         _log.info(f"Loaded tiptop config from original run: {saved_cfg_path}")
     else:
         _log.warning(

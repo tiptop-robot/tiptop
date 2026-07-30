@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -7,18 +8,31 @@ from jaxtyping import Float
 from omegaconf import DictConfig, OmegaConf
 from scipy.spatial.transform import Rotation
 
+_log = logging.getLogger(__name__)
+
 config_dir = Path(__file__).parent
 config_assets_dir = config_dir / "assets"
 calib_info_path = config_assets_dir / "calibration_info.json"
+default_cfg_path = config_dir / "tiptop.yml"
 
 _cached_cfg: DictConfig | None = None
 _cached_cfg_path: Path | None = None
 
 
-def set_tiptop_cfg_from_file(cfg_path: Path) -> DictConfig:
-    """Load and cache the TiPToP config from a specific file. Call before any tiptop_cfg() usage."""
+def set_tiptop_cfg_from_file(cfg_path: Path, fill_missing: bool = False) -> DictConfig:
+    """Load and cache the TiPToP config from a specific file. Call before any tiptop_cfg() usage.
+
+    Raises if the file omits keys present in the packaged defaults, unless fill_missing is set — recorded configs
+    replayed by tiptop-offline predate later config keys and cannot be updated after the fact.
+    """
     global _cached_cfg, _cached_cfg_path
-    cfg = OmegaConf.load(cfg_path)
+    defaults = OmegaConf.load(default_cfg_path)
+    loaded = OmegaConf.load(cfg_path)
+    cfg = OmegaConf.merge(defaults, loaded)
+    if cfg != loaded:
+        if not fill_missing:
+            raise ValueError(f"{cfg_path} is missing keys present in {default_cfg_path}. Update it to match.")
+        _log.warning(f"{cfg_path} is missing keys present in {default_cfg_path}, filling them in from the defaults")
     _cached_cfg = cfg
     _cached_cfg_path = Path(cfg_path)
     return cfg
@@ -27,7 +41,7 @@ def set_tiptop_cfg_from_file(cfg_path: Path) -> DictConfig:
 def tiptop_cfg() -> DictConfig:
     """Return the cached TiPToP config, loading the default config file on first call."""
     if _cached_cfg is None:
-        return set_tiptop_cfg_from_file(config_dir / "tiptop.yml")
+        return set_tiptop_cfg_from_file(default_cfg_path)
     return _cached_cfg
 
 
