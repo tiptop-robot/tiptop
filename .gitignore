@@ -11,9 +11,7 @@ __pycache__/
 # tiptop cache and outputs
 tiptop/.cache/
 tiptop_outputs/
-tiptop_outputs*
-tiptop_h5_outputs/
-tiptop_server_outputs/
+tiptop_*_outputs/
 
 # JetBrains
 .idea/

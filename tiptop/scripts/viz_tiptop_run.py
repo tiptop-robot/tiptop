@@ -2,28 +2,40 @@ import json
 import logging
 import re
 from pathlib import Path
-
 import cv2
 import dill
-import numpy as np
 import open3d as o3d
+import numpy as np
 import rerun as rr
 import torch
+from PIL import Image
+from omegaconf import OmegaConf
+
 from curobo.types.base import TensorDeviceType
 from cutamp.envs.utils import TAMPEnvironment
 from cutamp.robots import load_robot_container
 from cutamp.robots.utils import RerunRobot
 from cutamp.utils.common import pose_list_to_mat4x4
-from cutamp.utils.rerun_utils import curobo_to_rerun, log_curobo_mesh_to_rerun, log_curobo_pose_to_rerun
-from omegaconf import OmegaConf
-from PIL import Image
-
+from cutamp.utils.rerun_utils import log_curobo_pose_to_rerun, curobo_to_rerun, log_curobo_mesh_to_rerun
 from tiptop.perception.m2t2 import m2t2_to_tiptop_transform
 from tiptop.planning import load_tiptop_plan
 from tiptop.utils import get_robot_rerun, setup_logging
-from tiptop.viz_utils import get_gripper_mesh, get_heatmap
+from tiptop.viz_utils import get_heatmap, get_gripper_mesh
 
 _log = logging.getLogger(__name__)
+
+
+def parse_grasped_object(label: str) -> str:
+    """Return the first argument of an action label, e.g. "crackers_in_wrapper" from
+    "Pick(crackers_in_wrapper, grasp1, q1)".
+
+    Matches up to the first comma rather than \\w+ so names with apostrophes like "Rubik's_cube"
+    aren't truncated, and strips surrounding whitespace so the result is a clean object key.
+    """
+    match = re.match(r"\w+\(([^,]+),", label)
+    if match is None:
+        raise ValueError(f"Could not parse object name from label: {label!r}")
+    return match.group(1).strip()
 
 
 def viz_grasps(grasps, num_grasps_per_object: int):
@@ -97,12 +109,7 @@ def viz_tiptop_plan(tiptop_plan: dict, cutamp_env: TAMPEnvironment, robot_rr: Re
 
         elif action_dict["type"] == "gripper":
             if action_dict["action"] == "close":
-                # Parse object name from label e.g. "Pick(crackers_in_wrapper, grasp1, q1)".
-                # [^,]+ rather than \w+ so labels with apostrophes like "Rubik's_cube" aren't truncated.
-                match = re.match(r"\w+\(([^,]+)", action_dict["label"])
-                if match is None:
-                    raise ValueError(f"Could not parse object name from label: {action_dict['label']}")
-                grasped_obj = match.group(1)
+                grasped_obj = parse_grasped_object(action_dict["label"])
                 world_from_ee = (
                     kin_model.get_state(torch.tensor(last_q, device=device)[None]).ee_pose.get_matrix()[0].cpu().numpy()
                 )
@@ -117,7 +124,7 @@ def viz_tiptop_plan(tiptop_plan: dict, cutamp_env: TAMPEnvironment, robot_rr: Re
 
 
 def viz_tiptop_run(
-    save_dir: str,
+    run_dir: str,
     visualize_grasps: bool = True,
     visualize_plan: bool = True,
     num_grasps_per_object: int = 30,
@@ -127,21 +134,21 @@ def viz_tiptop_run(
     Visualize TiPToP outputs (perception and plan) from a saved run directory in Rerun.
 
     Args:
-        save_dir: Path to the saved run directory containing metadata.json, rgb.png, perception/, etc.
+        run_dir: Path to a saved TiPToP run directory (contains metadata.json, rgb.png, etc.).
         visualize_grasps: Whether to visualize the M2T2 grasp candidates.
         visualize_plan: Whether to visualize the TiPToP plan trajectory, including object poses while grasped.
         num_grasps_per_object: Maximum number of grasp candidates to display per object.
         log_transform_arrows: Whether to log coordinate frame arrows on object transforms.
     """
     setup_logging()
-    save_dir = Path(save_dir)
-    perception_dir = save_dir / "perception"
+    run_dir = Path(run_dir)
+    perception_dir = run_dir / "perception"
 
     # Load metadata
-    metadata_path = save_dir / "metadata.json"
+    metadata_path = run_dir / "metadata.json"
     if not metadata_path.exists():
-        raise FileNotFoundError(f"Could not find metadata.json in {save_dir}")
-    with open(save_dir / "metadata.json") as f:
+        raise FileNotFoundError(f"Could not find metadata.json in {run_dir}")
+    with open(run_dir / "metadata.json") as f:
         metadata = json.load(f)
     if metadata["version"] != "1.0.0":
         raise NotImplementedError(f"Version {metadata['version']} not supported")
@@ -151,7 +158,7 @@ def viz_tiptop_run(
     rr.init(application_id="viz_tiptop_outputs", spawn=True)
 
     # Load tiptop config from this run
-    tiptop_cfg = OmegaConf.load(save_dir / "tiptop.yml")
+    tiptop_cfg = OmegaConf.load(run_dir / "tiptop.yml")
     robot_type = tiptop_cfg["robot"]["type"]
     robot_rr = get_robot_rerun(robot_type=robot_type)
     robot_rr.set_joint_positions(metadata["observation"]["q_at_capture"])
@@ -163,7 +170,7 @@ def viz_tiptop_run(
         intrinsics = json.load(f)
     K = np.array(intrinsics["intrinsics"])
     rr.log("cam", rr.Pinhole(image_from_camera=K), static=True)
-    rgb = Image.open(save_dir / "rgb.png")
+    rgb = Image.open(run_dir / "rgb.png")
     rr.log("cam/rgb", rr.Image(rgb), static=True)
 
     # Mask out depth where gripper is present
@@ -177,14 +184,14 @@ def viz_tiptop_run(
     rr.log("cam/depth", rr.DepthImage(depth, meter=1000.0), static=True)
 
     # Bounding boxes and mask visualization
-    bboxes_viz = Image.open(save_dir / "bboxes_viz.png")
-    masks_viz = Image.open(save_dir / "masks_viz.png")
+    bboxes_viz = Image.open(run_dir / "bboxes_viz.png")
+    masks_viz = Image.open(run_dir / "masks_viz.png")
     rr.log("bboxes_viz", rr.Image(bboxes_viz), static=True)
     rr.log("masks_viz", rr.Image(masks_viz), static=True)
 
     # Point cloud
     pcd = o3d.io.read_point_cloud(perception_dir / "pointcloud.ply")
-    rr.log("pcd", rr.Points3D(positions=pcd.points, colors=pcd.colors))
+    rr.log("pcd", rr.Points3D(positions=pcd.points, colors=pcd.colors), static=True)
 
     # Grasps
     if visualize_grasps:
@@ -212,9 +219,9 @@ def viz_tiptop_run(
         return
 
     # Load and visualize the tiptop plan
-    tiptop_plan_path = save_dir / "tiptop_plan.json"
+    tiptop_plan_path = run_dir / "tiptop_plan.json"
     if not tiptop_plan_path.exists():
-        _log.warning(f"Could not find tiptop_plan.json in {save_dir}")
+        _log.warning(f"Could not find tiptop_plan.json in {run_dir}")
         return
     tiptop_plan = load_tiptop_plan(tiptop_plan_path)
     if tiptop_plan["version"] != "1.0.0":

@@ -1,6 +1,6 @@
 # TiPToP
 
-🌐 [Project Website](https://tiptop-robot.github.io) · 📝 [Paper](https://arxiv.org/abs/2603.09971)
+🌐 [Project Website](https://tiptop-robot.github.io) · 📝 [Paper](https://arxiv.org/abs/2603.09971) · 💻 [Code](https://github.com/tiptop-robot/tiptop)
 
 TiPToP is a Task and Motion Planning (TAMP) system that performs complex robot manipulation tasks like sorting, rearranging, and packing from images and natural language instructions. Using a modular architecture that separates perception, planning, and execution, TiPToP works out-of-the-box with zero training, zero demonstrations, and zero object-specific 3D models—yet matches or exceeds vision-language models trained on 350 hours of robot data.
 
@@ -81,6 +81,28 @@ How to contribute to TiPToP, including development setup and code style.
 
 ---
 
+## Blog
+
+::::{grid} 1
+:gutter: 3
+
+:::{grid-item-card} Achieving SOTA on the MolmoSpaces benchmark with Inference-Time Search
+:link: blogs/molmospaces-inference-time-search/en
+:link-type: doc
+
+*Nishanth Kumar · May 08, 2026*
+
+TiPToP achieves 46.1% on MolmoSpaces — outperforming every approach not trained on MolmoBot data and nearly doubling the next-best result.
+
+[中文版](blogs/molmospaces-inference-time-search/cn.md)
+:::
+
+::::
+
+[See all posts →](blogs/index.md)
+
+---
+
 ```{toctree}
 :maxdepth: 2
 :caption: Contents
@@ -96,6 +118,7 @@ command-reference
 troubleshooting
 limitations
 contributing
+blogs/index
 ```
 
 ## License
