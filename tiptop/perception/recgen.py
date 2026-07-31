@@ -9,7 +9,9 @@ from jaxtyping import Bool, Float, UInt8
 
 from tiptop.utils import ServerHealthCheckError
 
-msgpack_numpy.patch()
+# Pass msgpack_numpy's codecs explicitly per call rather than msgpack_numpy.patch(), which globally
+# swaps msgpack's default encoder/decoder for the whole process — including bamboo's robot-control
+# messages, which rely on stock msgpack.
 
 _log = logging.getLogger(__name__)
 
@@ -58,7 +60,7 @@ async def generate_shape_async(
     }
     if target_faces is not None:
         payload["target_faces"] = int(target_faces)
-    body = msgpack.packb(payload, use_bin_type=True)
+    body = msgpack.packb(payload, default=msgpack_numpy.encode, use_bin_type=True)
     endpoint = os.path.join(server_url.rstrip("/"), "generate")
 
     _log.debug(f"Sending inference request to RecGen server at {endpoint}")
@@ -69,7 +71,7 @@ async def generate_shape_async(
         timeout=aiohttp.ClientTimeout(total=timeout),
     ) as response:
         response.raise_for_status()
-        return msgpack.unpackb(await response.read(), raw=False)
+        return msgpack.unpackb(await response.read(), object_hook=msgpack_numpy.decode, raw=False)
 
 
 async def check_health_status(session: aiohttp.ClientSession, server_url: str):
