@@ -80,6 +80,7 @@ class TiptopPlanningServer:
             opt_steps=500,
             robot_type=self._cfg.robot.type,
             time_dilation_factor=self._cfg.robot.time_dilation_factor,
+            near_placement=self._cfg.experimental.pick_place_next_to,
         )
         self._output_dir = Path("tiptop_server_outputs")
         self._pipeline_lock = asyncio.Lock()

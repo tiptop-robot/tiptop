@@ -74,3 +74,9 @@ perception:
   contact_threshold_m: 0.01      # Grasp-object association distance threshold
   mask_erosion_pixels: 3         # Pixels to erode segmentation masks to reduce noise
 
+# == Experimental features ==
+experimental:
+  # Enables "place X next to Y" goals via the Near(x, y) predicate in cuTAMP.
+  # Placement distance tolerances default to cuTAMP's NearPlacement value of 5cm (5e-2).
+  # See default_constraint_to_tol in https://github.com/tiptop-robot/cuTAMP/blob/main/cutamp/scripts/utils.py
+  pick_place_next_to: false

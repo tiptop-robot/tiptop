@@ -7,6 +7,8 @@ from PIL import Image
 from google import genai
 from google.genai import types
 
+from tiptop.config import tiptop_cfg
+
 _log = logging.getLogger(__name__)
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
@@ -16,6 +18,12 @@ _PROMPTS_DIR = Path(__file__).parent / "prompts"
 def load_prompt(prompt_name: str) -> str:
     """Load a prompt template from the prompts directory."""
     return (_PROMPTS_DIR / f"{prompt_name}.txt").read_text(encoding="utf-8").strip()
+
+
+def _detect_and_translate_prompt_name() -> str:
+    if tiptop_cfg().experimental.pick_place_next_to:
+        return "detect_and_translate_pick_place_next_to"
+    return "detect_and_translate"
 
 
 @cache
@@ -76,7 +84,7 @@ def detect_and_translate(
         - grounded_atoms: List of predicate specifications
     """
     client = client or gemini_client()
-    prompt = load_prompt("detect_and_translate").format(task_instruction=task_instruction)
+    prompt = load_prompt(_detect_and_translate_prompt_name()).format(task_instruction=task_instruction)
     response = client.models.generate_content(
         model=model_id,
         contents=[image, prompt],
@@ -109,7 +117,7 @@ async def detect_and_translate_async(
         - grounded_atoms: List of predicate specifications.
     """
     client = client or gemini_client()
-    prompt = load_prompt("detect_and_translate").format(task_instruction=task_instruction)
+    prompt = load_prompt(_detect_and_translate_prompt_name()).format(task_instruction=task_instruction)
     response = await client.aio.models.generate_content(
         model=model_id,
         contents=[image, prompt],

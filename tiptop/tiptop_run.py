@@ -21,7 +21,7 @@ from curobo.wrap.reacher.ik_solver import IKSolver
 from curobo.wrap.reacher.motion_gen import MotionGen
 from cutamp.config import TAMPConfiguration
 from cutamp.envs import TAMPEnvironment
-from cutamp.tamp_domain import HandEmpty, Holding, On
+from cutamp.tamp_domain import HandEmpty, Holding, Near, On
 from cutamp.utils.rerun_utils import log_curobo_mesh_to_rerun
 from jaxtyping import Bool, Float
 from scipy.spatial import KDTree
@@ -278,6 +278,15 @@ def create_tamp_environment(
             movable_label = atom["args"][0]
             goal_state.add(Holding.ground(movable_label))
             _log.info(f"Goal: holding {movable_label}")
+        elif atom["predicate"] == "near" and len(atom["args"]) == 2:
+            # KNOWN LIMITATION: if reference_label is a surface (e.g. "put X in the bowl and Y
+            # next to the bowl"), cuTAMP rejects the goal because PlaceNear's reference must be a
+            # movable. See https://github.com/tiptop-robot/cuTAMP/issues/26
+            movable_label, reference_label = atom["args"]
+            goal_state.add(Near.ground(movable_label, reference_label))
+            _log.info(f"Goal: {movable_label} near {reference_label}")
+        else:
+            _log.warning(f"Ignoring unexpected grounded atom from Gemini: {atom}")
     if not has_holding:
         goal_state.add(HandEmpty.ground())
 
@@ -774,6 +783,7 @@ def _sync_entrypoint(
         opt_steps=opt_steps_per_skeleton,
         robot_type=cfg.robot.type,
         time_dilation_factor=cfg.robot.time_dilation_factor,
+        near_placement=cfg.experimental.pick_place_next_to,
         collision_activation_distance=0.0,
         enable_visualizer=cutamp_visualize,
     )

@@ -83,6 +83,7 @@ def run_tiptop(
         opt_steps=opt_steps_per_skeleton,
         robot_type=cfg.robot.type,
         time_dilation_factor=cfg.robot.time_dilation_factor,
+        near_placement=cfg.experimental.pick_place_next_to,
         collision_activation_distance=0.0,
         enable_visualizer=cutamp_visualize,
     )
