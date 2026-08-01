@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   behind `experimental.pick_place_next_to` in `tiptop.yml` (off by default) ([#30]).
 - Experimental RecGen shape completion: reconstructs a complete mesh per object instead of
   the convex hull of its observed point cloud, behind `perception.recgen.enabled` (off by
-  default). Runs as a microservice and adds roughly 10-20s per object ([#28]).
+  default). Runs as a microservice ([#28]).
 - Perception server health checks now run before the cuRobo warmup, so an unreachable
   FoundationStereo, M2T2, or RecGen server fails fast instead of after the warmup ([#28]).
 - Blog section in the docs, with English and Chinese versions of "Achieving SOTA on the

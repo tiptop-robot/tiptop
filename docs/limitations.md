@@ -2,11 +2,9 @@
 
 The TiPToP [project page](https://tiptop-robot.github.io/#extensions) and [implementation notes](https://tiptop-robot.github.io/implementation#limitations) discuss known limitations and potential extensions. We document some additional ones below to help set expectations and guide future development. [Contributions](contributing.md) to help overcome any of these are welcome!
 
-Some of these have experimental workarounds you can turn on, see [Experimental Features](experimental.md). Let us know how they work for you.
-
 #### No object-on-object stacking
 
-TiPToP cannot stack multiple objects atop one another, so tasks such as block stacking are currently not supported. This is due to the current implementation of cuTAMP and is not a conceptual limitation of the system. We are working on updates to support this.
+TiPToP cannot stack multiple objects atop one another, so tasks such as block stacking are currently not supported. This is due to the current implementation of cuTAMP and is not a conceptual limitation of the system. We are working on updates to support this. Placing one object next to another is available as an [experimental feature](experimental.md#place-next-to).
 
 #### Table-plane assumption
 
@@ -17,7 +15,7 @@ One approach to overcome this is to extend the Gemini VLM object detection to al
 
 #### Partial observability and convex hull geometry
 
-TiPToP represents each object as the convex hull of its observed point cloud. Even if multiple faces of an object are visible, the convex hull wraps the entire observed geometry, so the "On" predicate used by the planner (cuTAMP) reduces to placing objects on top of the hull. For an open box, for instance, the planner cannot distinguish "inside the box" from "on top of the box" since both are surfaces of the same convex hull.
+TiPToP represents each object as the convex hull of its observed point cloud. Even if multiple faces of an object are visible, the convex hull wraps the entire observed geometry, so the "On" predicate used by the planner (cuTAMP) reduces to placing objects on top of the hull. For an open box or a bowl, the hull spans the opening, so objects get placed on top of it rather than inside it.
 
 See `augment_with_base_projections` and `segment_pointcloud_by_masks` in `tiptop/perception/segmentation.py`, and `stable_placement_costs` in `cutamp/cost_function.py`.
 
