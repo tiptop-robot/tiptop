@@ -2,7 +2,7 @@
 
 The TiPToP [project page](https://tiptop-robot.github.io/#extensions) and [implementation notes](https://tiptop-robot.github.io/implementation#limitations) discuss known limitations and potential extensions. We document some additional ones below to help set expectations and guide future development. [Contributions](contributing.md) to help overcome any of these are welcome!
 
-Some of these limitations already have opt-in mitigations in [Experimental Features](experimental.md) — worth a look, and we'd value your feedback on how well they work in practice.
+Some of these limitations already have opt-in mitigations in [Experimental Features](experimental.md). They are worth a look, and we'd value your feedback on how well they work in practice.
 
 #### No object-on-object stacking
 
