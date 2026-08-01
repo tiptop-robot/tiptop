@@ -19,7 +19,7 @@ TiPToP represents each object as the convex hull of its observed point cloud. Ev
 
 See `augment_with_base_projections` and `segment_pointcloud_by_masks` in `tiptop/perception/segmentation.py`, and `stable_placement_costs` in `cutamp/cost_function.py`.
 
-Improving the perception pipeline to use part-based segmentation to represent distinct object surfaces would be one approach for addressing this.
+Improving the perception pipeline to use part-based segmentation to represent distinct object surfaces would be one approach for addressing this. TiPToP also has experimental support for replacing the convex hull with a complete reconstructed mesh; see [RecGen Shape Completion](experimental.md#recgen-shape-completion).
 
 #### Oriented bounding boxes and placement bounds
 
