@@ -64,7 +64,7 @@ perception:
     url: "http://<endpoint>:18324"
     enabled: false
     # Target mesh face count per object via decimation (applied server-side). Set to null to disable (huge meshes).
-    target_faces: 1000
+    target_faces: 10000
     # Maximum concurrent requests to RecGen inference server. Set at or slightly above gateway's GPU count.
     concurrency: 6
 
