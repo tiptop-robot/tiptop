@@ -415,7 +415,7 @@ You can try being as ambiguous or as specific as you want.
 - pull the pin out
 - put the apple to the left of the box (TiPToP currently does not support spatial constraints)
 
-Placing one object next to another is available as an opt-in [experimental feature](experimental.md#place-next-to), along with RecGen shape completion — both are off by default and we'd love your feedback on them.
+Placing one object next to another is available as an opt-in [experimental feature](experimental.md#place-next-to), along with RecGen shape completion. Both are off by default and we'd love your feedback on them.
 
 Please open an issue in the GitHub repository if you have any issues. Happy TiPToPing!
 
