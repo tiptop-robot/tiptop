@@ -61,11 +61,11 @@ perception:
 
 ### Runtime
 
-Reconstruction time depends on object complexity and on your GPUs, so treat the numbers below as a rough guide rather than a specification.
+Reconstruction time depends on object complexity and on your GPUs, so treat these as rough numbers.
 
-On our setup, a server with 4x RTX 3090s, a single object takes about 9 seconds. Because requests fan out across the GPUs, scenes up to roughly the GPU count finish in about that same time overall: our 4-object scenes completed in 9 to 13 seconds. Past that point requests queue and the total grows, with 5 and 6 object scenes taking 17 to 24 seconds.
+Our server has 4x RTX 3090s, so it runs 4 requests in parallel. A single object takes about 9 seconds, and scenes of up to 4 objects finish in roughly that same time overall, 9 to 13 seconds in our runs. With more than 4 objects the extra requests wait for a free GPU, so 5 and 6 object scenes took 17 to 24 seconds.
 
-More GPUs therefore help considerably more than faster ones, since the limit is how many objects you can reconstruct at once. Either way RecGen is far slower than convex hulls, which is why it stays off by default.
+More GPUs therefore help more than faster ones, since the limit is how many objects you can reconstruct at once. Either way RecGen is much slower than convex hulls, which is why it stays off by default.
 
 ### Known issues
 
