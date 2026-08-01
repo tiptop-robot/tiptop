@@ -1,18 +1,25 @@
 # Experimental Features
 
-TiPToP includes two experimental features, both **disabled by default**. Most users will not need them, and their configuration may change between releases.
+TiPToP includes two experimental features, both **disabled by default**. They work, but we have not run large-scale evaluations on them, and their configuration may change between releases.
 
 ```{warning}
 Experimental features are not covered by the integration test suite. Enable them for research and evaluation rather than for reliable operation.
 ```
 
 ```{tip}
-We really value feedback on these features. If you hit problems running them, or they work well for a task we haven't tried, please [open a GitHub issue](https://github.com/tiptop-robot/tiptop/issues). Reports from real setups are what move these from experimental to default.
+We really value feedback on these features. If you hit problems running them, or they work well for a task we haven't tried, please [open a GitHub issue](https://github.com/tiptop-robot/tiptop/issues).
 ```
 
 ## Place Next To
 
-Supports goals of the form "place X next to Y", for example *"put the yellow block next to the orange block"*, via the `Near` predicate in cuTAMP. Without it, TiPToP only supports placing objects **on** a surface.
+Supports goals of the form "place X next to Y" via the `Near` predicate in cuTAMP. Without it, TiPToP only supports placing objects **on** a surface. Examples that work on our setup:
+
+- *"place the yellow block next to the orange block"*
+- *"put the bowl next to the yellow block"*
+- *"put the orange block next to the purple one"*
+- *"put the big blocks next to the red bowl"* (moves several objects, one `near` goal each)
+
+"beside", "near" and "adjacent to" are recognised alongside "next to".
 
 Enable it in `tiptop/config/tiptop.yml`:
 
@@ -23,21 +30,30 @@ experimental:
 
 This requires cuTAMP 0.0.6 or newer, which provides the predicate. TiPToP checks the installed version on startup and fails with a clear message if it is too old.
 
-Enabling the flag switches Gemini to a prompt that can emit `near` atoms when it translates your instruction, and turns on near-placement handling in the planner. The placement distance tolerance defaults to cuTAMP's `NearPlacement` value of 5cm; see `default_constraint_to_tol` in cuTAMP's `cutamp/scripts/utils.py` to change it.
+Enabling the flag switches Gemini to a prompt that can emit `near` atoms when it translates your instruction, and turns on near-placement handling in the planner.
+
+Under the hood this adds cuTAMP's `PlaceNear` operator, defined in `cutamp/tamp_domain.py` in the [cuTAMP repository](https://github.com/tiptop-robot/cuTAMP). It is a normal `Place` plus a `NearPlacement` constraint, so sampling and motion planning are unchanged and the reference object only enters through the cost. That cost is computed in `near_placement_costs` in `cutamp/cost_function.py`: it penalises the center-to-center xy distance between the object and its reference in one direction only, evaluated at the placement timestep so the reference's pose at that moment is used. The distance threshold is half of each object's largest xy extent plus a fixed gap, so larger objects get a proportionally larger allowance.
 
 ## RecGen Shape Completion
 
-By default TiPToP represents each object as the convex hull of its observed point cloud. As described under *Partial observability and convex hull geometry* in [Limitations](limitations.md), the hull wraps all observed geometry, so the planner cannot distinguish "inside the box" from "on top of the box".
+By default TiPToP represents each object as the convex hull of its observed point cloud. The hull is what cuTAMP uses for collision checking, by sampling collision spheres from the mesh surface, and for placement bounds via the object's bounding box. For an open box or a bowl, the hull spans the opening, so objects get placed on top of it rather than inside it. See *Partial observability and convex hull geometry* in [Limitations](limitations.md).
 
-[RecGen](https://reconstruction-by-generation.github.io/) reconstructs a complete mesh for each object from a single RGB-D view, replacing the convex hull. The masked depth point cloud is still used to associate grasps with objects, so grasping behaviour is unchanged.
-
-This does not solve the problem completely, but it is a start, and we would like to hear how it holds up on your scenes.
+[RecGen](https://reconstruction-by-generation.github.io/) reconstructs a complete mesh per object, replacing the convex hull. TiPToP sends it the RGB image, the depth map, the object's segmentation mask from SAM-2, and the camera intrinsics, as one request per object. The masked depth point cloud is still used to associate grasps with objects, so grasping behaviour is unchanged.
 
 ### Setup
 
 RecGen runs as a microservice, like M2T2 and FoundationStereo. Follow the setup instructions at [github.com/williamshen-nz/recgen](https://github.com/williamshen-nz/recgen), and see the [RecGen project page](https://reconstruction-by-generation.github.io/) for background on the method.
 
-We strongly recommend a multi-GPU machine. TiPToP generates one completion per object and dispatches the requests concurrently, so the server fans them across available GPUs and the scene finishes in roughly the time of its slowest object rather than the sum of all of them.
+RecGen runs once per object, and each reconstruction occupies one GPU for its whole duration. The RecGen gateway starts one worker per GPU and TiPToP dispatches all of a scene's requests at once, so a scene with no more objects than the server has GPUs reconstructs in a single pass and costs about as much as its slowest object. Beyond that, the extra requests queue for a free worker. More GPUs therefore speed up multi-object scenes, but do not make any individual object faster.
+
+Capture viewpoint also matters a lot. Reconstructions degrade on top-down views, and the `q_capture` shipped in `tiptop.yml` is fairly top-down. A more front-facing pose gives noticeably better results, for example:
+
+```yaml
+robot:
+  q_capture: [0.350, -1.427, 0.495, -2.734, 0.012, 1.990, -2.446]
+```
+
+These joint values are specific to our setup, so treat them as a starting point and check the resulting view with [`viz-gripper-cam`](command-reference.md#viz-gripper-cam).
 
 ### Configuration
 
@@ -52,7 +68,7 @@ perception:
 
 | Key | Description |
 |---|---|
-| `url` | RecGen server address. Checked at startup when `enabled` is true. |
+| `url` | RecGen gateway address. The gateway listens on port 18324 by default, so normally you only need to fill in your host. Checked at startup when `enabled` is true. |
 | `enabled` | Use RecGen instead of convex hulls. |
 | `target_faces` | Target face count per object, applied by server-side decimation. Set to `null` to disable, which returns very large meshes. |
 | `concurrency` | Maximum in-flight requests. Set at or slightly above the server's GPU count. |
@@ -65,12 +81,4 @@ Reconstruction time depends on object complexity and on your GPUs, so treat thes
 
 Our server has 4x RTX 3090s, so it runs 4 requests in parallel. A single object takes about 9 seconds, and scenes of up to 4 objects finish in roughly that same time overall, 9 to 13 seconds in our runs. With more than 4 objects the extra requests wait for a free GPU, so 5 and 6 object scenes took 17 to 24 seconds.
 
-More GPUs therefore help more than faster ones, since the limit is how many objects you can reconstruct at once. Either way RecGen is much slower than convex hulls, which is why it stays off by default.
-
-### Known issues
-
-Reconstruction quality varies, and the failure modes below are RecGen-side rather than integration problems:
-
-- **Camera viewpoint matters.** Reconstructions degrade on top-down views. A more front-facing capture pose gives noticeably better results.
-- **Occluded objects reconstruct poorly.** A partially occluded object can come back over-extended along one axis, which may then fail cuTAMP's stable-placement constraint.
-- **Multi-shell reconstructions.** RecGen occasionally returns two overlapping shells for one object. Decimation cannot merge geometrically distinct surfaces, so these meshes stay large.
+Either way RecGen is much slower than convex hulls, which is why it stays off by default.
