@@ -405,12 +405,12 @@ See the [TiPToP website](https://tiptop-robot.github.io/) for examples of things
 - serve me two healthy snacks
 - put the ball away in the cup
 - throw the coke cans into the empty box
+- pick up the apple (the robot keeps holding it, and asks you to catch it before opening the gripper)
 
 You can try being as ambiguous or as specific as you want.
 
 **Examples of bad instructions:**
 
-- pick up the apple (TiPToP currently requires a pick and a place, not just a pick)
 - i like chips
 - pull the pin out
 - put the apple to the left of the box (TiPToP currently does not support spatial constraints)
