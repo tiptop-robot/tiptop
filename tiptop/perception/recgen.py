@@ -9,10 +9,6 @@ from jaxtyping import Bool, Float, UInt8
 
 from tiptop.utils import ServerHealthCheckError
 
-# Pass msgpack_numpy's codecs explicitly per call rather than msgpack_numpy.patch(), which globally
-# swaps msgpack's default encoder/decoder for the whole process — including bamboo's robot-control
-# messages, which rely on stock msgpack.
-
 _log = logging.getLogger(__name__)
 
 
