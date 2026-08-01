@@ -56,6 +56,8 @@ async def reconstruct_objects_with_recgen(
     t_start = time.perf_counter()
     if masks.ndim == 4 and masks.shape[1] == 1:
         masks = masks[:, 0]
+    # RecGen takes the un-eroded mask; erosion degrades its reconstructions. The point cloud path in
+    # process_scene_geometry still erodes, where suppressing depth edge noise is what matters.
     masks_2d = masks.astype(bool)
     if len(bboxes) != masks_2d.shape[0]:
         raise ValueError(f"bboxes ({len(bboxes)}) and masks ({masks_2d.shape[0]}) length mismatch")

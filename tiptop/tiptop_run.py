@@ -347,6 +347,7 @@ def process_scene_geometry(
         for mask_2d, bbox in zip(masks_2d, bboxes):
             label = bbox["label"]
             if label not in recgen_meshes:
+                _log.warning(f"Skipping {label}: no RecGen mesh for this label")
                 continue
             points = masked_object_points(mask_2d, xyz_map, rgb_map, erode_pixels, label)
             if points is None:
