@@ -308,8 +308,6 @@ The demo script runs in a tmux session and automatically attaches you to it. Aft
 
 🎉 **Now your TiPToP installation is complete!** Move on to the [Getting Started](getting-started) page to configure your robot and run your first TiPToP demo.
 
-TiPToP can optionally use a third perception service, RecGen, for object shape completion. It is experimental and off by default, so it is not needed for a standard installation — see [Experimental Features](experimental) if you want to set it up.
-
 ---
 
 ## Troubleshooting

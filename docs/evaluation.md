@@ -66,6 +66,8 @@ We recommend `--enable-recording` for evaluations so you can review executions a
 
 See the [tiptop-run command reference](command-reference.md#tiptop-run) for the full list of options.
 
+If you are evaluating place-next-to goals or RecGen shape completion, see [Experimental Features](experimental.md) for how to enable them and what to expect. We're keen to hear how they hold up across scenes, so please report what you find.
+
 ### Labeling Results
 
 After each execution, you'll be prompted to label the rollout:
