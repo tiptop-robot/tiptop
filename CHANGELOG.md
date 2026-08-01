@@ -5,6 +5,34 @@ All notable changes to TiPToP are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Experimental support for "place X next to Y" tasks via a `Near` predicate in cuTAMP,
+  behind `experimental.pick_place_next_to` in `tiptop.yml` (off by default) ([#30]).
+- Experimental RecGen shape completion: reconstructs a complete mesh per object instead of
+  the convex hull of its observed point cloud, behind `perception.recgen.enabled` (off by
+  default). Runs as a microservice and adds roughly 10-20s per object ([#28]).
+- Perception server health checks now run before the cuRobo warmup, so an unreachable
+  FoundationStereo, M2T2, or RecGen server fails fast instead of after the warmup ([#28]).
+- Blog section in the docs, with English and Chinese versions of "Achieving SOTA on the
+  MolmoSpaces benchmark with Inference-Time Search" ([#25]).
+
+### Changed
+
+- TiPToP now requires cuTAMP 0.0.6, which provides the `Near` predicate ([#30]).
+- Offline replay fills missing config keys from the packaged defaults, so run directories
+  recorded by older versions still replay ([#34]).
+- Pinned `warp-lang` below 1.13 ([#32]).
+
+### Fixed
+
+- `viz-tiptop-run` no longer crashes on plan labels containing punctuation, such as
+  `Rubik's_cube` ([#35]).
+- Git output and prompt files are read as UTF-8 rather than the locale's preferred
+  encoding, which could mangle or crash on non-ASCII content ([#33]).
+
 ## [0.2.0] - 2026-06-05
 
 ### Breaking Changes
@@ -52,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial tagged release.
 
+[Unreleased]: https://github.com/tiptop-robot/tiptop/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/tiptop-robot/tiptop/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tiptop-robot/tiptop/releases/tag/v0.1.0
 
@@ -61,5 +90,12 @@ Initial tagged release.
 [#20]: https://github.com/tiptop-robot/tiptop/pull/20
 [#21]: https://github.com/tiptop-robot/tiptop/pull/21
 [#23]: https://github.com/tiptop-robot/tiptop/pull/23
+[#25]: https://github.com/tiptop-robot/tiptop/pull/25
 [#26]: https://github.com/tiptop-robot/tiptop/pull/26
 [#27]: https://github.com/tiptop-robot/tiptop/pull/27
+[#28]: https://github.com/tiptop-robot/tiptop/pull/28
+[#30]: https://github.com/tiptop-robot/tiptop/pull/30
+[#32]: https://github.com/tiptop-robot/tiptop/pull/32
+[#33]: https://github.com/tiptop-robot/tiptop/pull/33
+[#34]: https://github.com/tiptop-robot/tiptop/pull/34
+[#35]: https://github.com/tiptop-robot/tiptop/pull/35

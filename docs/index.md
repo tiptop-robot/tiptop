@@ -56,6 +56,13 @@ Add support for a new robot arm or camera to TiPToP.
 Detailed documentation for TiPToP CLI commands including helper commands.
 :::
 
+:::{grid-item-card} 🧪 Experimental Features
+:link: experimental
+:link-type: doc
+
+Opt-in features that are less battle-tested: place-next-to goals and RecGen shape completion.
+:::
+
 :::{grid-item-card} 🔧 Troubleshooting
 :link: troubleshooting
 :link-type: doc
@@ -115,6 +122,7 @@ simulation
 evaluation
 adding-new-embodiment
 command-reference
+experimental
 troubleshooting
 limitations
 contributing
