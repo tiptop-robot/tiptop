@@ -60,7 +60,7 @@ Detailed documentation for TiPToP CLI commands including helper commands.
 :link: experimental
 :link-type: doc
 
-Place-next-to goals and RecGen shape completion. Both are off by default.
+Features that are still experimental and off by default.
 :::
 
 :::{grid-item-card} 🔧 Troubleshooting
