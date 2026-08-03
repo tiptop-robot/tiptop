@@ -21,7 +21,7 @@ async def generate_shape_async(
     intrinsics: Float[np.ndarray, "3 3"],
     seed: int = 42,
     target_faces: int | None = None,
-    timeout: float = 600.0,
+    timeout: float = 180.0,
 ) -> dict:
     """Run RecGen single-view reconstruction for one object via HTTP.
 
