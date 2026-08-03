@@ -12,14 +12,12 @@ We really value feedback on these features. If you hit problems running them, or
 
 ## Place Next To
 
-Supports goals of the form "place X next to Y" via the `Near` predicate in cuTAMP. Without it, TiPToP only supports placing objects **on** a surface. Examples that work on our setup:
+Supports goals of the form "place X next to Y" via the `Near` predicate in cuTAMP. Without it, TiPToP only supports placing objects **on** a surface. Examples:
 
-- *"place the yellow block next to the orange block"*
-- *"put the bowl next to the yellow block"*
-- *"put the orange block next to the purple one"*
-- *"put the big blocks next to the red bowl"* (moves several objects, one `near` goal each)
-
-"beside", "near" and "adjacent to" are recognised alongside "next to".
+- *"place the mug next to the coffee jar"*
+- *"put the apple beside the cereal box"*
+- *"put the marker adjacent to the notebook"*
+- *"put the screwdrivers near the toolbox"* (moves several objects, one `near` goal each)
 
 Enable it in `tiptop/config/tiptop.yml`:
 
@@ -32,13 +30,13 @@ This requires cuTAMP 0.0.6 or newer, which provides the predicate. TiPToP checks
 
 Enabling the flag switches Gemini to a prompt that can emit `near` atoms when it translates your instruction, and turns on near-placement handling in the planner.
 
-Under the hood this adds cuTAMP's `PlaceNear` operator, defined in `cutamp/tamp_domain.py` in the [cuTAMP repository](https://github.com/tiptop-robot/cuTAMP). It is a normal `Place` plus a `NearPlacement` constraint, so sampling and motion planning are unchanged and the reference object only enters through the cost. That cost is computed in `near_placement_costs` in `cutamp/cost_function.py`: it penalises the center-to-center xy distance between the object and its reference in one direction only, evaluated at the placement timestep so the reference's pose at that moment is used. The distance threshold is half of each object's largest xy extent plus a fixed gap, so larger objects get a proportionally larger allowance.
+Under the hood this adds cuTAMP's `PlaceNear` operator, defined in [`cutamp/tamp_domain.py`](https://github.com/tiptop-robot/cuTAMP/blob/main/cutamp/tamp_domain.py). It is a normal `Place` plus a `NearPlacement` constraint, so sampling and motion planning are unchanged and the reference object only enters through the cost. That cost is computed in `near_placement_costs` in [`cutamp/cost_function.py`](https://github.com/tiptop-robot/cuTAMP/blob/main/cutamp/cost_function.py): it penalizes the center-to-center xy distance between the object and its reference in one direction only, evaluated at the placement timestep so the reference's pose at that moment is used. The distance threshold is half of each object's largest xy extent plus a fixed gap, so larger objects get a proportionally larger allowance. The constraint counts as satisfied within cuTAMP's default tolerance of 5cm, set by [`default_constraint_to_tol`](https://github.com/tiptop-robot/cuTAMP/blob/main/cutamp/scripts/utils.py).
 
 ## RecGen Shape Completion
 
-By default TiPToP represents each object as the convex hull of its observed point cloud. The hull is what cuTAMP uses for collision checking, by sampling collision spheres from the mesh surface, and for placement bounds via the object's bounding box. For an open box or a bowl, the hull spans the opening, so objects get placed on top of it rather than inside it. See *Partial observability and convex hull geometry* in [Limitations](limitations.md).
+By default TiPToP represents each object as the convex hull of its observed point cloud. The hull is what cuTAMP uses for collision checking, by sampling collision spheres from the mesh surface, and for placement bounds via the object's bounding box. See *Partial observability and convex hull geometry* in [Limitations](limitations.md).
 
-[RecGen](https://reconstruction-by-generation.github.io/) reconstructs a complete mesh per object, replacing the convex hull. TiPToP sends it the RGB image, the depth map, the object's segmentation mask from SAM-2, and the camera intrinsics, as one request per object. The masked depth point cloud is still used to associate grasps with objects, so grasping behaviour is unchanged.
+[RecGen](https://reconstruction-by-generation.github.io/) reconstructs a complete mesh per object, replacing the convex hull. TiPToP sends it the RGB image, the depth map, the object's segmentation mask from SAM-2, and the camera intrinsics, as one request per object. The masked depth point cloud is still used to associate grasps with objects, so grasping behavior is unchanged.
 
 ### Setup
 
@@ -73,12 +71,10 @@ perception:
 | `target_faces` | Target face count per object, applied by server-side decimation. Set to `null` to disable, which returns very large meshes. |
 | `concurrency` | Maximum in-flight requests. Set at or slightly above the server's GPU count. |
 
-`target_faces` affects the mesh used for visualisation and static-world collision only. cuTAMP samples collision spheres for movable objects from the mesh surface, which is insensitive to how finely the mesh is tessellated, so raising it does not change planning behaviour.
+`target_faces` affects the mesh used for visualization and static-world collision only. cuTAMP samples collision spheres for movable objects from the mesh surface, which is insensitive to how finely the mesh is tessellated, so raising it does not change planning behavior.
 
 ### Runtime
 
 Reconstruction time depends on object complexity and on your GPUs, so treat these as rough numbers.
 
 Our server has 4x RTX 3090s, so it runs 4 requests in parallel. A single object takes about 9 seconds, and scenes of up to 4 objects finish in roughly that same time overall, 9 to 13 seconds in our runs. With more than 4 objects the extra requests wait for a free GPU, so 5 and 6 object scenes took 17 to 24 seconds.
-
-Either way RecGen is much slower than convex hulls, which is why it stays off by default.
