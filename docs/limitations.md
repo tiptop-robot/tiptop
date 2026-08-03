@@ -4,7 +4,7 @@ The TiPToP [project page](https://tiptop-robot.github.io/#extensions) and [imple
 
 #### No object-on-object stacking
 
-TiPToP cannot stack multiple objects atop one another, so tasks such as block stacking are currently not supported. This is due to the current implementation of cuTAMP and is not a conceptual limitation of the system. We are working on updates to support this. Placing one object next to another is available as an [experimental feature](experimental.md#place-next-to).
+TiPToP cannot stack multiple objects atop one another, so tasks such as block stacking are currently not supported. This is due to the current implementation of cuTAMP and is not a conceptual limitation of the system. We are working on updates to support this.
 
 #### Table-plane assumption
 
@@ -15,11 +15,11 @@ One approach to overcome this is to extend the Gemini VLM object detection to al
 
 #### Partial observability and convex hull geometry
 
-TiPToP represents each object as the convex hull of its observed point cloud. Even if multiple faces of an object are visible, the convex hull wraps the entire observed geometry, so the "On" predicate used by the planner (cuTAMP) reduces to placing objects on top of the hull. For an open box or a bowl, the hull spans the opening, so objects get placed on top of it rather than inside it.
+TiPToP represents each object as the convex hull of its observed point cloud. Even if multiple faces of an object are visible, the convex hull wraps the entire observed geometry, so the "On" predicate used by the planner (cuTAMP) reduces to placing objects on top of the hull. For an open box, for instance, the planner cannot distinguish "inside the box" from "on top of the box" since both are surfaces of the same convex hull.
 
 See `augment_with_base_projections` and `segment_pointcloud_by_masks` in `tiptop/perception/segmentation.py`, and `stable_placement_costs` in `cutamp/cost_function.py`.
 
-Improving the perception pipeline to use part-based segmentation to represent distinct object surfaces would be one approach for addressing this. TiPToP also has experimental support for replacing the convex hull with a complete reconstructed mesh; see [RecGen Shape Completion](experimental.md#recgen-shape-completion).
+Improving the perception pipeline to use part-based segmentation to represent distinct object surfaces would be one approach for addressing this. TiPToP also has experimental support for replacing the convex hull with a complete mesh predicted by RecGen; see [RecGen Shape Completion](experimental.md#recgen-shape-completion).
 
 #### Oriented bounding boxes and placement bounds
 
