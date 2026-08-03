@@ -1,6 +1,6 @@
 # Experimental Features
 
-TiPToP includes two experimental features, both **disabled by default**. They work, but we have not run large-scale evaluations on them, and their configuration may change between releases.
+TiPToP includes two experimental features, both **disabled by default**. They are less thoroughly tested than the core pipeline, and their configuration may change between releases.
 
 ```{warning}
 Experimental features are not covered by the integration test suite. Enable them for research and evaluation rather than for reliable operation.
@@ -18,6 +18,8 @@ Supports goals of the form "place X next to Y" via the `Near` predicate in cuTAM
 - *"put the apple beside the cereal box"*
 - *"put the marker adjacent to the notebook"*
 - *"put the screwdrivers near the toolbox"* (moves several objects, one `near` goal each)
+
+This is the feature behind the Place-NextTo task in our [MolmoSpaces evaluation](blogs/molmospaces-inference-time-search/en.md), where TiPToP placed first on that task with 38.0% over 1000 episodes.
 
 Enable it in `tiptop/config/tiptop.yml`:
 
